@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "project": {
+    "name": "your-project-name",
+    "riskDefault": "medium"
+  },
+  "governance": {
+    "attributes": ["resilience", "security", "safety", "privacy", "reliability"],
+    "protected": ["security", "safety"],
+    "tiers": ["critical", "high", "medium", "low", "minimal", "none"]
+  },
+  "quality": {
+    "riskChecks": {
+      "low": ["catalog-lint", "fitness"],
+      "medium": ["catalog-lint", "fitness", "arch-check", "unit"],
+      "high": ["catalog-lint", "fitness", "arch-check", "adr-check", "unit", "static", "security-scan", "attributes"]
+    },
+    "runtimeValidityHours": 24
+  },
+  "fastMode": {
+    "defaultTtlHours": 24
+  },
+  "context": {
+    "budgetTokens": 60000,
+    "deny": [".env", ".env.*", "*.pem", "*.key", "id_rsa*", ".ssh/**", ".aws/**", "*secret*", "*credential*"]
+  },
+  "retention": {
+    "evidenceDays": 30,
+    "ledgerMaxEntries": 300
+  },
+  "hooks": {
+    "stopMaxBlocks": 3
+  },
+  "feedback": {
+    "signalKeywords": ["不对", "错了", "重来", "不是这样", "别这样", "wrong", "not what i", "redo", "don't do that"]
+  },
+  "services": {}
+}

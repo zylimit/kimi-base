@@ -1,0 +1,32 @@
+{
+  "name": "kimi-base",
+  "version": "1.0.0",
+  "description": "面向 Kimi Code CLI 的 AI 编程 harness 开发脚手架：需求质量、架构看护、五性治理",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test tests/harness.test.mjs",
+    "selftest": "node runtime/kimi-base.mjs selftest",
+    "doctor": "node runtime/kimi-base.mjs doctor .",
+    "manifest": "node runtime/kimi-base.mjs manifest --write",
+    "manifest:check": "node runtime/kimi-base.mjs manifest --check",
+    "pack:check": "node runtime/kimi-base.mjs pack-check"
+  },
+  "files": [
+    "kimi.plugin.json",
+    "plugin/",
+    "runtime/",
+    "template/",
+    "docs/",
+    "README.md",
+    "Product-Spec.md",
+    "Product-Spec-CHANGELOG.md",
+    "DEV-PLAN.md",
+    "setup.sh",
+    "setup.ps1",
+    "make-release.sh"
+  ]
+}

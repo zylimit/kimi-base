@@ -1,0 +1,55 @@
+{
+  "name": "kimi-base",
+  "version": "1.0.0",
+  "description": "AI 编程 harness 开发脚手架：需求质量、架构看护、五性治理、证据优先的质量门禁",
+  "keywords": ["harness", "governance", "quality-gates", "architecture", "kimi-code"],
+  "license": "MIT",
+  "skills": "./plugin/skills/",
+  "commands": "./plugin/commands/",
+  "sessionStart": {
+    "skill": "kimi-base"
+  },
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "matcher": "Bash",
+      "command": "node ./runtime/kimi-base.mjs hook pre-tool-use-bash",
+      "timeout": 5
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "^(Write|Edit)$",
+      "command": "node ./runtime/kimi-base.mjs hook pre-write",
+      "timeout": 5
+    },
+    {
+      "event": "Stop",
+      "command": "node ./runtime/kimi-base.mjs hook stop",
+      "timeout": 10
+    },
+    {
+      "event": "UserPromptSubmit",
+      "command": "node ./runtime/kimi-base.mjs hook prompt-submit",
+      "timeout": 5
+    },
+    {
+      "event": "SubagentStop",
+      "command": "node ./runtime/kimi-base.mjs hook subagent-stop",
+      "timeout": 5
+    },
+    {
+      "event": "PreCompact",
+      "command": "node ./runtime/kimi-base.mjs hook pre-compact",
+      "timeout": 5
+    },
+    {
+      "event": "SessionStart",
+      "command": "node ./runtime/kimi-base.mjs hook session-start",
+      "timeout": 5
+    }
+  ],
+  "interface": {
+    "displayName": "kimi-base",
+    "shortDescription": "AI 编程 harness：把需求质量、架构看护与五性治理固化为可执行检查"
+  }
+}

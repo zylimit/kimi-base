@@ -1,0 +1,15 @@
+# 依赖与构建产物
+node_modules/
+*.log
+
+# kimi-base 运行态（任何项目本地状态都不入库）
+.kimi-base/state/
+**/.kimi-base/state/
+
+# 安装器冲突旁路
+*.kimi-base-new
+
+# 临时与系统文件
+.DS_Store
+*.swp
+tmp/

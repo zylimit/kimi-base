@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "note": "外部工具适配目录：harness 不捆绑不安装；可执行文件缺失=BLOCKED 绝不假绿。用 gate --kind security 等接入，或把 command 拷进 verification-matrix.json。",
+  "adapters": [
+    {
+      "id": "semgrep",
+      "command": "semgrep scan --config auto --error",
+      "attributes": ["security"],
+      "kind": "security",
+      "timeoutSec": 900,
+      "rationale": "SAST 模式匹配强；数据流与业务逻辑漏洞覆盖有限"
+    },
+    {
+      "id": "osv-scanner",
+      "command": "osv-scanner --recursive .",
+      "attributes": ["security"],
+      "kind": "security",
+      "timeoutSec": 600,
+      "rationale": "依赖已知漏洞；不覆盖零日与私有源"
+    },
+    {
+      "id": "trivy",
+      "command": "trivy fs .",
+      "attributes": ["security"],
+      "kind": "security",
+      "timeoutSec": 900,
+      "rationale": "镜像/文件系统/IaC 扫描；误报需人工过一遍"
+    },
+    {
+      "id": "gitleaks",
+      "command": "gitleaks detect --redact",
+      "attributes": ["security", "privacy"],
+      "kind": "security",
+      "timeoutSec": 600,
+      "rationale": "git 历史密钥；只在扫描时点的历史范围内有效"
+    },
+    {
+      "id": "syft",
+      "command": "syft . -o table",
+      "attributes": ["security"],
+      "kind": "security",
+      "timeoutSec": 600,
+      "rationale": "SBOM 生成；成分可见性，不等于漏洞结论"
+    },
+    {
+      "id": "presidio",
+      "command": "presidio scan .",
+      "attributes": ["privacy"],
+      "kind": "static",
+      "timeoutSec": 900,
+      "rationale": "PII 识别；中文实体识别需自配识别器"
+    },
+    {
+      "id": "stryker",
+      "command": "stryker run",
+      "attributes": ["reliability"],
+      "kind": "unit",
+      "timeoutSec": 3600,
+      "rationale": "变异测试：回答'测试真能抓住缺陷吗'；慢，适合夜间"
+    },
+    {
+      "id": "schemathesis",
+      "command": "schemathesis run openapi.yaml",
+      "attributes": ["reliability", "resilience"],
+      "kind": "integration",
+      "timeoutSec": 1800,
+      "rationale": "API 契约对抗测试；依赖 spec 质量"
+    },
+    {
+      "id": "k6",
+      "command": "k6 run load-test.js",
+      "attributes": ["resilience"],
+      "kind": "integration",
+      "timeoutSec": 3600,
+      "rationale": "并发冲击与容量证据；runtime 类结果按时间窗理解，不当作当前 diff 的证据"
+    },
+    {
+      "id": "checkov",
+      "command": "checkov -d .",
+      "attributes": ["security", "safety"],
+      "kind": "security",
+      "timeoutSec": 900,
+      "rationale": "IaC 配置合规；云资源漂移不在其视野内"
+    }
+  ]
+}

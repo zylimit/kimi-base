@@ -1,0 +1,3 @@
+# 运行态目录：由 kimi-base 引擎在运行时创建
+# 安装器会把下行追加到项目 .gitignore（若不存在）：
+# .kimi-base/state/
