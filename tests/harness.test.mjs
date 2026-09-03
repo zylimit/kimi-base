@@ -44,7 +44,16 @@ const RT = RUNTIME_OK ? {} : { skip: '.kimi-base/runtime/kimi-base.mjs 未就绪
 /** 建独立临时目录，用例结束自动清理 */
 function mkdtemp(t, prefix = 'kimi-base-') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 }));
+  // 收尾删除在 CI 上有环境竞态：Windows Defender/索引器短时持锁（EBUSY）。重试覆盖
+  // 短时占用；最终仍失败则 diagnostic 留痕、残留交 OS 回收——清理失败不伪造测试结果，
+  // 不该把全绿的套件拖红。
+  t.after(() => {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 30, retryDelay: 500 });
+    } catch (e) {
+      t.diagnostic(`临时目录清理失败（残留由 OS 回收）: ${dir} — ${e.code ?? e.message}`);
+    }
+  });
   return dir;
 }
 
@@ -106,6 +115,13 @@ function git(dir, ...args) {
       GIT_COMMITTER_NAME: 'kimi-base-test',
       GIT_COMMITTER_EMAIL: 'kimi-base-test@example.com',
       GIT_INIT_DEFAULT_BRANCH: 'main',
+      // CI 上 git 提交会派生后台 gc/maintenance 进程异步补写 .git，与收尾 rmSync 撞出
+      // ENOTEMPTY。测试夹具一律禁掉自动 gc/maintenance——没有后台写就没有竞态。
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'gc.auto',
+      GIT_CONFIG_VALUE_0: '0',
+      GIT_CONFIG_KEY_1: 'maintenance.auto',
+      GIT_CONFIG_VALUE_1: 'false',
     },
   });
   if (r.status !== 0) throw new Error(`git ${args.join(' ')} 失败: ${r.stderr}`);

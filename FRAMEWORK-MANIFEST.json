@@ -302,8 +302,8 @@
     {
       "path": ".kimi-base/runtime/supervisor.mjs",
       "source": ".kimi-base/runtime/supervisor.mjs",
-      "sha256": "f6daa5ba5c954456652d3ad350da6475229b61bd8e07e9e5058e479ee4374b46",
-      "bytes": 17781
+      "sha256": "4ef16ff45b0c40cf4aa8e802d6bfab0fb1ee194d80768f8b35192d2a2c753ba2",
+      "bytes": 18346
     },
     {
       "path": ".kimi-base/state.README",
@@ -578,5 +578,5 @@
       "seed": true
     }
   ],
-  "digest": "3398782154ede82d48ae23d74c6008d7aed580607fa88a2eeef17144b09b11fa"
+  "digest": "87f5637b46bcb4982a5d6d5fee5c13cb614a9fb43f4cd3770ebe6e550d5c9112"
 }

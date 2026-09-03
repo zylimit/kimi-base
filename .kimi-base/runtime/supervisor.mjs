@@ -164,7 +164,11 @@ function killTree(pid) {
   if (!pid) return;
   try {
     if (process.platform === 'win32') {
-      spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+      // 必须 unref + 吞 error：未 unref 的 ChildProcess 会钉住事件循环，靠排空退出的
+      // 一次性命令（stop）在 Windows 实测永远退不掉（结果已 emit 但进程挂死 30s+）。
+      spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+        .on('error', () => { /* 目标已退出 */ })
+        .unref();
     } else {
       try { process.kill(-pid, 'SIGTERM'); } catch { process.kill(pid, 'SIGTERM'); }
       setTimeout(() => {
@@ -369,7 +373,9 @@ function cmdStop(flags, name) {
     const supervisorGone = !latest?.supervisorPid || !pidAlive(latest.supervisorPid);
     const childGone = !latest?.childPid || !pidAlive(latest.childPid);
     if (supervisorGone && childGone) {
-      emit({ ok: true, name, status: 'stopped' });
+      // 一次性命令显式退出（write 回调里退，防截断）：killTree 等残留的子进程句柄
+      // 可能拖着事件循环永不排空，不能指望自然 drain（Windows 实测挂死）。
+      process.stdout.write(`${JSON.stringify({ ok: true, name, status: 'stopped' })}\n`, () => process.exit(0));
       return;
     }
     if (Date.now() > deadline) die(`stop 6 秒内未收敛（supervisor=${supervisorGone ? '已停' : '存活'} child=${childGone ? '已停' : '存活'}）`, 1);
