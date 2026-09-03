@@ -1,0 +1,2 @@
+# sh 钩子必须保持 LF：Windows 上 autocrlf 检出的 CRLF 会让 sh 语法报错
+* text=auto eol=lf

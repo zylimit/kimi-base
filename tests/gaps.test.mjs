@@ -414,3 +414,29 @@ describe('gate 检查形态', RT, () => {
     assert.ok(!exists(dir, lockRel), 'gate 结束后资源锁必须释放（无残留 .lock）');
   });
 });
+
+// ---------------- UNSAFE_TARGET 区分器（pwsh 实测发现的真 bug）----------------
+// 已安装项目用自带引擎重跑 install（如 install . --hooks 挂载第二道闸）曾被误拒——
+// 哨兵只看"目标与引擎根重叠"，分不清脚手架源仓与已安装项目。区分器 = 源根的 kimi.plugin.json。
+describe('install 自我重跑与源仓拒绝', RT, () => {
+  test('已安装项目：自带引擎 install . --hooks 允许并挂载 core.hooksPath', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    git(dir, 'init', '-q');
+    // 用真仓引擎（带 kimi.plugin.json 的源仓）装进目标项目——目标与源不重叠，允许
+    const first = run(['install', '.'], { cwd: dir });
+    assert.equal(first.code, 0, out(first));
+    // 关键：改用"已安装的引擎"对自己项目重跑 install --hooks（doctor 提示的补救路径）
+    const installed = path.join(dir, '.kimi-base', 'runtime', 'kimi-base.mjs');
+    const r = spawnSync(process.execPath, [installed, 'install', '.', '--hooks'], { cwd: dir, encoding: 'utf8', timeout: 30_000 });
+    assert.equal(r.status, 0, `已安装项目重跑 install 必须允许，实际 ${r.status}: ${r.stdout}\n${r.stderr}`);
+    const hooksPath = git(dir, 'config', 'core.hooksPath');
+    assert.equal(hooksPath, '.kimi-base/githooks', `core.hooksPath 必须挂载，实际: ${hooksPath || '(未设置)'}`);
+  });
+
+  test('脚手架源仓自身：install . 仍被 UNSAFE_TARGET 拒绝', () => {
+    const r = run(['install', '.'], { cwd: REPO });
+    assert.equal(r.code, 1, `源仓自我安装必须拒绝 exit 1，实际 ${r.code}: ${out(r)}`);
+    assert.match(out(r), /UNSAFE_TARGET|源仓/, '必须点名 UNSAFE_TARGET');
+  });
+});

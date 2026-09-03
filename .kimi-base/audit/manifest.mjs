@@ -18,7 +18,7 @@ import process from 'node:process';
 // 受管面（恒等映射目录 + 单文件）与种子（源文件 → 目标名）。与 installer 的定义
 // 逐字对齐是职责而不是 Bug：两边必须独立演化时发现对方漂移。
 const MANAGED_DIRS = ['.kimi-base/runtime', '.kimi-base/rules', '.kimi-base/templates', '.kimi-base/audit', '.kimi-base/githooks', '.kimi-code'];
-const MANAGED_FILES = ['.kimi-base/adapters.json', '.kimi-base/state.README'];
+const MANAGED_FILES = ['.kimi-base/adapters.json', '.kimi-base/state.README', '.kimi-base/harness.example.json', '.kimi-base/module-catalog.example.json', '.kimi-base/verification-matrix.example.json'];
 const SEEDS = [
   ['.kimi-base/harness.example.json', '.kimi-base/harness.json'],
   ['.kimi-base/module-catalog.example.json', '.kimi-base/module-catalog.json'],

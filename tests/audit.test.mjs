@@ -286,6 +286,8 @@ describe('manifest.mjs（独立实现）', () => {
       { path: '.kimi-base/runtime/x.mjs', ...sha256Lf('export const x = 1;\n') },
       { path: '.kimi-base/templates/AGENTS.md', ...sha256Lf('# seed agents\n') },
       { path: 'AGENTS.md', ...sha256Lf('# seed agents\n') },
+      // example 种子源自 P7b 起同时是受管文件（恒等映射入面），基线必须双录
+      { path: '.kimi-base/harness.example.json', ...sha256Lf('{"version":1}\n') },
       { path: '.kimi-base/harness.json', ...sha256Lf('{"version":1}\n') }
     ].sort((a, b) => a.path.localeCompare(b.path));
     const digest = crypto.createHash('sha256')

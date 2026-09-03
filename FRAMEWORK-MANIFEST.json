@@ -18,8 +18,8 @@
     {
       "path": ".kimi-base/audit/manifest.mjs",
       "source": ".kimi-base/audit/manifest.mjs",
-      "sha256": "528c35d96130f0522943f63cf50a17641d2149fc67a88f59baccf5a8eaa54c8b",
-      "bytes": 6827
+      "sha256": "928ad154f9efe638383e903215efa3c2c0d383cc559a58fd5b1ddf738f3bcd2a",
+      "bytes": 6951
     },
     {
       "path": ".kimi-base/audit/run-tests.mjs",
@@ -40,6 +40,12 @@
       "bytes": 4457
     },
     {
+      "path": ".kimi-base/githooks/.gitattributes",
+      "source": ".kimi-base/githooks/.gitattributes",
+      "sha256": "3a30cecd17ef25b05f8b11db38d47e0ef0badbd0450295d208d6140d14de8068",
+      "bytes": 107
+    },
+    {
       "path": ".kimi-base/githooks/commit-msg",
       "source": ".kimi-base/githooks/commit-msg",
       "sha256": "36dde2021dd0cef1f3bc0b00e0a2a4e8784b9d510c151c71054abe0301ab4f7f",
@@ -58,11 +64,23 @@
       "bytes": 1490
     },
     {
+      "path": ".kimi-base/harness.example.json",
+      "source": ".kimi-base/harness.example.json",
+      "sha256": "595370b4e9ac7c925b2c94fbef6c6d323df148e9a7228f6a4be5ec421209cd06",
+      "bytes": 1353
+    },
+    {
       "path": ".kimi-base/harness.json",
       "source": ".kimi-base/harness.example.json",
       "sha256": "595370b4e9ac7c925b2c94fbef6c6d323df148e9a7228f6a4be5ec421209cd06",
       "bytes": 1353,
       "seed": true
+    },
+    {
+      "path": ".kimi-base/module-catalog.example.json",
+      "source": ".kimi-base/module-catalog.example.json",
+      "sha256": "f139474e952471b5b27d078255684ef9d471c7eefe84db60955c7942869177bc",
+      "bytes": 1410
     },
     {
       "path": ".kimi-base/module-catalog.json",
@@ -206,8 +224,8 @@
     {
       "path": ".kimi-base/runtime/lib/installer.mjs",
       "source": ".kimi-base/runtime/lib/installer.mjs",
-      "sha256": "b80095d073572eeb411a3425ff4817548ae02a8b90e24f980113ae1bd925fc07",
-      "bytes": 26920
+      "sha256": "d83d89d7f187064391f587d00d810c71c57f6176ead1634e91d328942e37b3c3",
+      "bytes": 27600
     },
     {
       "path": ".kimi-base/runtime/lib/ledger.mjs",
@@ -372,6 +390,12 @@
       "bytes": 900
     },
     {
+      "path": ".kimi-base/verification-matrix.example.json",
+      "source": ".kimi-base/verification-matrix.example.json",
+      "sha256": "2bbed9da3ed7c945cb400a0513b39364d491fa3d234f4a40f4af592904abddd6",
+      "bytes": 2040
+    },
+    {
       "path": ".kimi-base/verification-matrix.json",
       "source": ".kimi-base/verification-matrix.example.json",
       "sha256": "2bbed9da3ed7c945cb400a0513b39364d491fa3d234f4a40f4af592904abddd6",
@@ -511,6 +535,12 @@
       "bytes": 4172
     },
     {
+      "path": ".kimi-code/skills/skill-builder/scripts/.gitattributes",
+      "source": ".kimi-code/skills/skill-builder/scripts/.gitattributes",
+      "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c",
+      "bytes": 19
+    },
+    {
       "path": ".kimi-code/skills/skill-builder/scripts/test-skill-behavior.sh",
       "source": ".kimi-code/skills/skill-builder/scripts/test-skill-behavior.sh",
       "sha256": "0d3a0c3f8e815ed4437c094ce39f94b682d2bed58646b5d5a3f73acf150af772",
@@ -548,5 +578,5 @@
       "seed": true
     }
   ],
-  "digest": "2edf3ee80b4849ec8dbdf35072deae58367dce3846082900114ee0e2b4fb0484"
+  "digest": "3398782154ede82d48ae23d74c6008d7aed580607fa88a2eeef17144b09b11fa"
 }

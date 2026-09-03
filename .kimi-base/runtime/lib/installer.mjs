@@ -29,6 +29,11 @@ export const MANAGED_ENTRIES = [
   '.kimi-base/githooks',
   '.kimi-base/adapters.json',
   '.kimi-base/state.README',
+  // example 种子源也随载荷发布（受管、恒等映射）：已安装项目重跑 install/upgrade 时
+  // 复制面校验需要它们在场（dsh 同款：catalog.example.json 随 .dsh/base/ 分发）。
+  '.kimi-base/harness.example.json',
+  '.kimi-base/module-catalog.example.json',
+  '.kimi-base/verification-matrix.example.json',
   '.kimi-code'
 ];
 // 种子文件：仅 install 且目标缺省时写入；upgrade 永不覆盖；uninstall 仅当哈希仍等于原始种子才删。
@@ -194,14 +199,17 @@ export async function assertSafeTarget(targetArgument) {
   if (target === path.parse(target).root) throw new HarnessError('拒绝把文件系统根目录作为目标', 'UNSAFE_TARGET');
   if (target === path.resolve(homedir())) throw new HarnessError('拒绝把用户主目录作为目标', 'UNSAFE_TARGET');
   const source = path.resolve(SOURCE_ROOT);
-  if (target === source || isWithin(source, target) || isWithin(target, source)) {
+  // 只有"脚手架源仓"才禁止自我安装：源仓根带 kimi.plugin.json；已安装项目
+  // 用自带的引擎重跑 install/upgrade（含 install . --hooks 挂载第二道闸）必须允许。
+  const sourceIsScaffold = await pathExists(path.join(source, 'kimi.plugin.json'));
+  if (sourceIsScaffold && (target === source || isWithin(source, target) || isWithin(target, source))) {
     throw new HarnessError('拒绝把脚手架源仓本身（或其上下级）作为安装目标', 'UNSAFE_TARGET');
   }
   try {
     const info = await stat(target);
     if (!info.isDirectory()) throw new HarnessError('目标已存在但不是目录', 'UNSAFE_TARGET');
     const [physicalTarget, physicalSource] = await Promise.all([realpath(target), realpath(source)]);
-    if (physicalTarget === physicalSource || isWithin(physicalSource, physicalTarget) || isWithin(physicalTarget, physicalSource)) {
+    if (sourceIsScaffold && (physicalTarget === physicalSource || isWithin(physicalSource, physicalTarget) || isWithin(physicalTarget, physicalSource))) {
       throw new HarnessError('目标经符号链接解析到源仓内部/外部环绕，拒绝', 'UNSAFE_TARGET');
     }
   } catch (error) {
