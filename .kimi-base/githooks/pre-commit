@@ -1,0 +1,54 @@
+#!/bin/sh
+# kimi-base :: pre-commit —— 提交时本地执法（fail-closed 的第二道闸；CI 才是权威）
+#
+# 只跑快的静态检查；行为证据属于 pre-push。
+# 降级显式化：无标记静默、无 node 响亮放行，都不假报通过。
+# 用 --no-verify 绕过是 HIGH 级行为，必须能向人解释。
+
+ROOT=$(git rev-parse --show-toplevel) || exit 0
+cd "$ROOT" || exit 0
+
+# 标记惰性：非 kimi-base 项目（无 .kimi-base/harness.json）完全静默。
+[ -f .kimi-base/harness.json ] || exit 0
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "kimi-base: node 不在 PATH 上——治理检查被 SKIPPED，SKIPPED 不是 PASS。" >&2
+  echo "kimi-base: 这是文档化的 fail-open；最终权威是 CI 门禁。" >&2
+  exit 0
+fi
+
+run_step() {
+  LABEL=$1
+  shift
+  ERR=/tmp/kimi-base-hook-err.$$
+  "$@" >/dev/null 2>"$ERR"
+  CODE=$?
+  if [ "$CODE" = "0" ]; then
+    rm -f "$ERR"
+    return 0
+  fi
+  if [ "$CODE" = "3" ]; then
+    echo "kimi-base: $LABEL 降级（exit 3）——无法测量不是通过；响亮记录，不阻断本次提交" >&2
+  else
+    echo "kimi-base: $LABEL 失败（exit $CODE）" >&2
+    sed -n '1,25p' "$ERR" >&2
+    rm -f "$ERR"
+    echo "kimi-base: 提交被 $LABEL 拦截。修复发现项后重试；" >&2
+    echo "kimi-base: 用 --no-verify 绕过属 HIGH 级行为，请能向人解释。" >&2
+    exit 1
+  fi
+  rm -f "$ERR"
+}
+
+run_step scan-secrets      node .kimi-base/audit/scan-secrets.mjs --staged
+run_step scan-instructions node .kimi-base/audit/scan-instructions.mjs --staged
+run_step check-syntax      node .kimi-base/audit/check-syntax.mjs
+run_step catalog-lint      node .kimi-base/runtime/kimi-base.mjs catalog lint
+run_step skills-lint       node .kimi-base/runtime/kimi-base.mjs skills-lint
+run_step agents-lint       node .kimi-base/runtime/kimi-base.mjs agents-lint
+run_step fitness           node .kimi-base/runtime/kimi-base.mjs fitness --staged
+run_step sync-check        node .kimi-base/runtime/kimi-base.mjs sync-check --staged
+# P6 变更预算（ADVISORY）：超出仅响亮提示不拦截；P6+ 将其升级为闸门的方式是去掉 || true。
+node .kimi-base/runtime/kimi-base.mjs budget --staged || true
+
+exit 0

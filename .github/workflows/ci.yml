@@ -4,9 +4,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
+  gate:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         node: [20, 22]
@@ -16,8 +20,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: node runtime/kimi-base.mjs selftest
-      - run: node runtime/kimi-base.mjs doctor .
-      - run: node --test tests/harness.test.mjs
-      - run: node runtime/kimi-base.mjs manifest --check
-      - run: node runtime/kimi-base.mjs pack-check
+      # 引擎先自证，再评判仓库。
+      - name: 引擎自检
+        run: node .kimi-base/runtime/kimi-base.mjs selftest
+      # 独立审计脚本（不 import 引擎）：引擎内部缺陷无法让它们沉默。
+      - name: 语法（独立审计）
+        run: node .kimi-base/audit/check-syntax.mjs
+      - name: 机密扫描（独立审计）
+        run: node .kimi-base/audit/scan-secrets.mjs
+      - name: 指令文件注入扫描（独立审计）
+        run: node .kimi-base/audit/scan-instructions.mjs
+      - name: 载荷完整性（独立审计）
+        run: node .kimi-base/audit/manifest.mjs --check
+      - name: 行为测试
+        run: node .kimi-base/audit/run-tests.mjs
+      # 静态治理电池：catalog/skills/agents/spec/adr/fitness --all/trace/receipt/arch。
+      - name: Definition of Done
+        run: node .kimi-base/runtime/kimi-base.mjs dod
+      - name: 架构漂移棘轮
+        run: node .kimi-base/runtime/kimi-base.mjs arch trend --gate

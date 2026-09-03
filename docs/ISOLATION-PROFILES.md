@@ -47,3 +47,15 @@ pattern = "Bash(git push*)"
 - evidence 落盘前正则脱敏；context pack DENY 清单（.env/*.pem/id_rsa/.ssh/.aws）永不入 LLM 上下文包。
 - feedback 私密标记内容不进发布包；make-release 泄漏扫描非零退出。
 - 会话目录（~/.kimi-code/sessions/）含提示词与输出，属本地调试材料，勿直接提交公开仓库。
+
+## 5. 三面执法模型
+
+同一套治理在三个面各有一道闸，互补而非冗余——每一面诚实声明自己能保证什么、不能保证什么：
+
+| 面 | 时机 | 形态 | 诚实边界 |
+| --- | --- | --- | --- |
+| 插件 hooks（`hook <event>`） | 工具调用时 | 护栏：危险命令分类、写前对账、Stop 完成门 | **fail-open**：脚本异常/超时默认放行；不是沙箱 |
+| git hooks（`.kimi-base/githooks/`，`install --hooks` 挂载） | 提交/推送时 | **本地 fail-closed**：pre-commit 静态电池、pre-push 跑 `dod`+`gate`、commit-msg 废话拦截 | `--no-verify` 可绕（HIGH 级行为）；机器无 node 时响亮放行（SKIPPED 不是 PASS） |
+| CI 门禁（`.github/workflows/ci.yml` / 采纳者复制 `templates/github-gate.yml`） | 合并时 | **合并权威**：独立审计脚本 + dod + 测试 + 棘轮，全矩阵（OS×Node） | 不可绕——本地绕过在这里现形 |
+
+要点：git hooks 跑的静态检查与 CI 是同一组定义（`dod` 的 DOD_STEPS 是唯一事实源），本地红 = CI 红，没有"本地能过 CI 才挂"的惊喜；CI 里的 `.kimi-base/audit/` 脚本不 import 引擎，引擎自身的缺陷无法让审计沉默。

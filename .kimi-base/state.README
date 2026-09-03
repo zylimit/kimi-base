@@ -1,0 +1,4 @@
+# 运行态目录：由 kimi-base 引擎在运行时创建
+# 安装器会在本目录写入 .gitignore，内容为两行（忽略全部运行态，但保留 .gitignore 自身）：
+# *
+# !.gitignore

@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "id": "catalog-lint",
+      "kind": "static",
+      "command": "node .kimi-base/runtime/kimi-base.mjs catalog lint",
+      "attributes": ["reliability"],
+      "allowFastSkip": false,
+      "timeoutSec": 120
+    },
+    {
+      "id": "arch-check",
+      "kind": "static",
+      "command": "node .kimi-base/runtime/kimi-base.mjs arch check",
+      "attributes": ["reliability"],
+      "allowFastSkip": false,
+      "timeoutSec": 300
+    },
+    {
+      "id": "adr-check",
+      "kind": "static",
+      "command": "node .kimi-base/runtime/kimi-base.mjs adr check",
+      "attributes": ["reliability"],
+      "allowFastSkip": true,
+      "timeoutSec": 60
+    },
+    {
+      "id": "fitness",
+      "kind": "static",
+      "command": "node .kimi-base/runtime/kimi-base.mjs fitness",
+      "attributes": ["security", "privacy", "reliability", "resilience", "safety"],
+      "allowFastSkip": false,
+      "timeoutSec": 300
+    },
+    {
+      "id": "attributes",
+      "kind": "static",
+      "command": "node .kimi-base/runtime/kimi-base.mjs quality status",
+      "attributes": ["security", "safety", "privacy", "resilience", "reliability"],
+      "allowFastSkip": false,
+      "timeoutSec": 60
+    },
+    {
+      "id": "selftest",
+      "kind": "unit",
+      "command": "node .kimi-base/runtime/kimi-base.mjs selftest",
+      "attributes": ["reliability"],
+      "allowFastSkip": false,
+      "timeoutSec": 120
+    },
+    {
+      "id": "unit",
+      "kind": "unit",
+      "command": "node --test tests/harness.test.mjs",
+      "attributes": ["reliability"],
+      "allowFastSkip": false,
+      "timeoutSec": 600
+    },
+    {
+      "id": "manifest-check",
+      "kind": "static",
+      "command": "node .kimi-base/runtime/kimi-base.mjs manifest --check",
+      "attributes": ["reliability"],
+      "allowFastSkip": true,
+      "timeoutSec": 60
+    },
+    {
+      "id": "pack-check",
+      "kind": "security",
+      "command": "node .kimi-base/runtime/kimi-base.mjs pack-check",
+      "attributes": ["security"],
+      "allowFastSkip": false,
+      "timeoutSec": 120
+    }
+  ]
+}

@@ -62,6 +62,26 @@ P1 调研审计 ──► P2 架构定型 ──► P3 runtime 引擎 ─┐
 - P7-T2 make-release.sh 打包 + 泄漏扫描。
 - P7-T3 progress.md 归档收尾，写下验证证据句柄。
 
+## v2.0 重构 Phase 表（对标并超越 dsh-base；全部完成，证据见 progress.md Done）
+
+```
+P1 源布局=安装布局自托管 ──► P2 契约硬化 ──► P3 评审引擎化 ──► P4 记忆/需求治理
+                                                              │
+P7c 文档与发版 ◄── P7b dogfood 双修 ◄── P7a 测试补盲+dogfood ◄┴── P5 三面执法 ──► P6 规模化治理深化
+```
+
+| Phase | 内容 | 完成证据 |
+| --- | --- | --- |
+| P1 ✅ | template/ 消亡；载荷=`.kimi-base/`+`.kimi-code/`；引擎拆薄入口+lib/；安装器恒等映射+种子语义 | selftest 15/15、测试 38/38、catalog/manifest/doctor/pack-check/arch 全 exit 0 |
+| P2 ✅ | 退出码契约 v2；严格 flag 校验；best-ever 棘轮；runtime 证据时间窗；账本轮转 anchor；继承缺陷清算 | selftest 16/16、测试 53/53、六闸全 exit 0 |
+| P3 ✅ | review 协议引擎化（九 lens/三阶段/四剖面/计算裁决/终审回执/持久 backlog）；red-blue-review skill 重写为编排层 | 测试 80/80、七闸全 exit 0 |
+| P4 ✅ | recap/invariants/archive/sync-check；spec lint/trace/spec view；rules-audit/skills-lint/agents-lint；Spec 41 条可判定化 | 测试 115/115、trace 100%、spec lint 0 error |
+| P5 ✅ | 三面执法：githooks 三钩子 + audit 五独立脚本 + dod 电池 + install --hooks + CI 电池 | 测试 144/144、模拟 CI 序列全绿 |
+| P6 ✅ | catalog discover/cochange/budget/fleet 全移植；privacy 入保护底线；release composite | 测试 166/166、spec lint 41 条、trace 100% |
+| P7a ✅ | 测试补盲 gaps 16 例；REQ-036~044 补立；端到端 dogfood；性能冒烟（合成仓 4954 文件/151 模块） | 测试 182/182、trace 100% 50/50 |
+| P7b ✅ | dogfood 缺陷双修：fast 借账不能关闭 task；stale≠完整性失败（dod STALE 态/release 完整性≠新鲜度） | 测试 188/188、dogfood 全程翻绿 release READY |
+| P7c ✅ | 文档与发版：ADR-0002~0007、README/ARCHITECTURE/CAPABILITY-MATRIX/CROSS-POLLINATION 刷新、CHANGELOG.md、版本 2.0.0 | adr check 7 活跃 0 幽灵；全量闸见 progress.md P7c 条目 |
+
 ## 风险与控制
 
 | 风险 | 控制 |

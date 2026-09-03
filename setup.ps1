@@ -1,6 +1,6 @@
 # kimi-base setup entry (PowerShell 5.1 compatible, 100% ASCII by design).
 # Usage: powershell -File setup.ps1 <target-project-dir> [--dry-run]
-# Wraps: node runtime/kimi-base.mjs install <target>, then prints the plugin hint.
+# Wraps: node .kimi-base/runtime/kimi-base.mjs install <target>, then prints the plugin hint.
 # NOTE: keep this file ASCII-only; non-ASCII bytes break PowerShell 5.1 parsing.
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +22,7 @@ if (-not $Node) {
     exit 1
 }
 
-& node "$ScriptDir\runtime\kimi-base.mjs" install $Target @Rest
+& node "$ScriptDir\.kimi-base\runtime\kimi-base.mjs" install $Target @Rest
 $Code = $LASTEXITCODE
 
 if ($Code -eq 0) {

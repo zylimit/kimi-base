@@ -6,7 +6,8 @@
 
 - 每个模块声明：`paths`（glob 归属）、`layer`（分层）、`dependsOn`、`forbiddenDependencies`、`provides`、`attributes`（五性定档）。
 - `catalog lint` 铁律：每条 git tracked 路径有主；拒绝 catch-all（裸 `**` 让覆盖看起来完整却什么都没证明）；重叠即错。
-- 棕地接入：`init-modules` 按顶层目录生成骨架 → 人工校正 → `arch baseline --write` 固化存量债（每条带 reason，进 git 可评审）→ 此后未声明边只许降不许升。
+- 棕地接入四步：`catalog discover [--write]` 从仓库事实（目录分组 + 真实 import 边 + 构建清单）推导草案 → **人逐项决定 `needsDecision`**（属性档位/forbiddenDependencies/层名/矩阵接线——引擎拒绝猜，人不得偷懒全收）→ `arch baseline --write` 固化存量债（每条带 reason，进 git 可评审）→ 此后 `arch trend --gate` 棘轮执法，未声明边只许降不许升。（`init-modules` 是 discover 的废弃别名。）
+- 边界复审节奏：`cochange` 定期（建议每迭代/发版前）用 git 历史测量共变耦合——高耦合无声明边 = BOUNDARY_SUSPECT，要么修边界/补声明，要么在 `catalog.cochange.accepted` 写书面理由留痕；历史太薄（<30 个有效提交）时它自己报 LOW_CONFIDENCE，别拿提示当测量。
 - 文档纪律：Architecture-Design.md 与 catalog 冲突时，**以 arch check 实测为准并回改文档**——文档向机器态对齐，而不是相反。
 
 ## 2. 影响分析：验证成本随变更收缩
@@ -39,6 +40,19 @@
 - PreToolUse hook 常规路径 <100ms；Stop 门 <2s。
 - 60 万行/64 模块：catalog lint <10s；impact <5s。
 - 手段：glob 编译缓存、`git ls-files -z`、有界扫描（超 maxTrackedPaths 按坏测量处理并保守扩散）、长输出落盘只回摘要。
+
+### 实测冒烟（v2.0 P7a，2026-09-02，Windows + Node 24）
+
+合成仓 4954 文件 / 151 模块（约 1 万行）：
+
+| 命令 | 耗时 |
+| --- | --- |
+| `catalog lint` | 332ms |
+| `impact --git`（改 core 触发最大反向闭包） | 227ms |
+| `arch check --scan` | 1373ms |
+| `gate`（2 个琐碎检查） | 518ms |
+
+对照上方设计目标（60 万行/64 模块 lint<10s、impact<5s）余量约两个数量级。**诚实外推边界**：合成仓只有约 1 万行且为均匀合成结构，文件数×40、行数×60 的真实仓其 git 操作、全文扫描与 import 边解析的增长曲线未必线性——60 万行真实校准仍挂 TODO #7，本节数字只证明"机制本身没有明显常数级病态"，不证明 60 万行达标。
 
 ## 6. 实战教训（digifiber-conflation 七克隆，详录 CROSS-POLLINATION.md §实战）
 

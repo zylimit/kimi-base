@@ -1,0 +1,38 @@
+#!/bin/sh
+# kimi-base :: pre-push —— 推送是把工作发布给别人构建，这是最后一个自动拒绝点。
+#
+# 先跑静态 Definition of Done，再跑质量门。kimi 的 gate 把证据绑定在整棵树
+# 指纹上（任何字节漂移都使旧回执 stale 并 fail-closed），已覆盖范围语义，
+# 因此不需要 dsh 式 --baseline；非零即拦（含降级 exit 3——降级不是通过）。
+
+ROOT=$(git rev-parse --show-toplevel) || exit 0
+cd "$ROOT" || exit 0
+
+# 标记惰性：非 kimi-base 项目完全静默。
+[ -f .kimi-base/harness.json ] || exit 0
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "kimi-base: node 不在 PATH 上——pre-push 闸被 SKIPPED，SKIPPED 不是 PASS。" >&2
+  echo "kimi-base: 这是文档化的 fail-open；最终权威是 CI 门禁。" >&2
+  exit 0
+fi
+
+echo "kimi-base: pre-push 运行 dod（静态电池）..." >&2
+node .kimi-base/runtime/kimi-base.mjs dod
+DOD=$?
+
+echo "kimi-base: pre-push 运行 gate（质量门）..." >&2
+node .kimi-base/runtime/kimi-base.mjs gate
+GATE=$?
+
+if [ "$DOD" != "0" ] || [ "$GATE" != "0" ]; then
+  echo "" >&2
+  echo "kimi-base: push 被拦截（dod exit=$DOD，gate exit=$GATE）。逐跑查看原因：" >&2
+  echo "  node .kimi-base/runtime/kimi-base.mjs dod" >&2
+  echo "  node .kimi-base/runtime/kimi-base.mjs gate" >&2
+  echo "kimi-base: exit 3 = 该能力在此未配置——那是缺口，不是通过。" >&2
+  exit 1
+fi
+
+echo "kimi-base: dod 与 gate 均通过。" >&2
+exit 0

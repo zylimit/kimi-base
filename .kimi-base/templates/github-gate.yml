@@ -1,0 +1,56 @@
+# kimi-base 采纳者 CI 门禁模板（第三道闸：合并权威）
+#
+# 用法：复制本文件到 <你的仓库>/.github/workflows/kimi-base-gate.yml。
+# 安装布局 = 源布局，路径无需调整；installer 不会替你写 .github（不越俎代庖）。
+# 前提：仓库已经过 install（存在 .kimi-base/harness.json 标记与复制面）。
+#
+# 三面执法模型（docs/ISOLATION-PROFILES.md）：
+#   插件 hooks（工具调用时，fail-open 护栏）→ git hooks（提交/推送时，本地 fail-closed，
+#   --no-verify 可绕）→ 本 CI（合并权威，fail-closed，不可绕）。
+
+name: kimi-base gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # 引擎先自证，再评判仓库。
+      - name: 引擎自检
+        run: node .kimi-base/runtime/kimi-base.mjs selftest
+      # 独立审计脚本（不 import 引擎）：引擎内部缺陷无法让它们沉默。
+      - name: 语法（独立审计）
+        run: node .kimi-base/audit/check-syntax.mjs
+      - name: 机密扫描（独立审计）
+        run: node .kimi-base/audit/scan-secrets.mjs
+      - name: 指令文件注入扫描（独立审计）
+        run: node .kimi-base/audit/scan-instructions.mjs
+      - name: 载荷完整性（独立审计）
+        run: node .kimi-base/audit/manifest.mjs --check
+      - name: 行为测试
+        run: node .kimi-base/audit/run-tests.mjs
+      - name: Definition of Done
+        run: node .kimi-base/runtime/kimi-base.mjs dod
+      - name: 架构漂移棘轮
+        run: node .kimi-base/runtime/kimi-base.mjs arch trend --gate
+      # 腐化信号扫描（建议态，不阻断）。
+      - name: 风险扫描（advisory）
+        continue-on-error: true
+        run: node .kimi-base/runtime/kimi-base.mjs risk scan

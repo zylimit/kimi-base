@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "layers": ["engine", "assets", "integration"],
+  "globalPaths": [
+    "docs/**",
+    ".github/**",
+    "*.md",
+    "*.json",
+    "*.sh",
+    "*.ps1",
+    ".gitignore",
+    ".gitattributes"
+  ],
+  "ignored": [],
+  "review": {
+    "profile": "team",
+    "maxRounds": 3,
+    "requireStructured": true
+  },
+  "modules": [
+    {
+      "name": "engine",
+      "paths": [".kimi-base/runtime/**"],
+      "layer": "engine",
+      "dependsOn": [],
+      "forbiddenDependencies": ["plugin", "tests", "skills-agents", "payload-assets"],
+      "provides": [],
+      "attributes": {
+        "resilience": "high",
+        "security": "high",
+        "safety": "medium",
+        "privacy": "medium",
+        "reliability": "critical"
+      }
+    },
+    {
+      "name": "payload-assets",
+      "paths": [".kimi-base/rules/**", ".kimi-base/templates/**", ".kimi-base/*.json", ".kimi-base/state.README", ".kimi-base/githooks/**"],
+      "layer": "assets",
+      "dependsOn": [],
+      "forbiddenDependencies": ["engine", "plugin", "tests", "skills-agents"],
+      "provides": [],
+      "attributes": {
+        "resilience": "low",
+        "security": "medium",
+        "safety": "low",
+        "privacy": "low",
+        "reliability": "high"
+      }
+    },
+    {
+      "name": "skills-agents",
+      "paths": [".kimi-code/**"],
+      "layer": "assets",
+      "dependsOn": ["engine"],
+      "forbiddenDependencies": ["plugin", "tests"],
+      "provides": [],
+      "attributes": {
+        "resilience": "low",
+        "security": "medium",
+        "safety": "medium",
+        "privacy": "low",
+        "reliability": "high"
+      }
+    },
+    {
+      "name": "audit",
+      "paths": [".kimi-base/audit/**"],
+      "layer": "assets",
+      "dependsOn": [],
+      "forbiddenDependencies": ["engine"],
+      "provides": [],
+      "attributes": {
+        "resilience": "low",
+        "security": "high",
+        "safety": "low",
+        "privacy": "medium",
+        "reliability": "high"
+      }
+    },
+    {
+      "name": "tests",
+      "paths": ["tests/**"],
+      "layer": "assets",
+      "dependsOn": ["engine"],
+      "forbiddenDependencies": ["plugin", "skills-agents"],
+      "provides": [],
+      "attributes": {
+        "resilience": "low",
+        "security": "medium",
+        "safety": "low",
+        "privacy": "low",
+        "reliability": "high"
+      }
+    },
+    {
+      "name": "plugin",
+      "paths": ["plugin/**", "kimi.plugin.json"],
+      "layer": "integration",
+      "dependsOn": ["engine"],
+      "forbiddenDependencies": ["tests", "skills-agents"],
+      "provides": [],
+      "attributes": {
+        "resilience": "medium",
+        "security": "high",
+        "safety": "medium",
+        "privacy": "low",
+        "reliability": "high"
+      }
+    }
+  ]
+}

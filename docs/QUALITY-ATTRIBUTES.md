@@ -21,7 +21,7 @@
 | 档 | 语义 | 缺口后果 |
 | --- | --- | --- |
 | critical | 阻断且永不可豁免 | 无 fresh 证据即 uncovered，阻断完成 |
-| high | 阻断，可 waiver（security/safety 除外） | 同上 |
+| high | 阻断，可 waiver（security/safety/privacy 除外） | 同上 |
 | medium | 告警 | 报告不阻断 |
 | low | 记录 | 仅可见 |
 | minimal / none | 退出治理 | **必须书面理由**（catalog lint UNJUSTIFIED_TIER 拦裸退出）——退出治理是留痕决策，不是零成本默认 |
@@ -46,10 +46,10 @@ critical/high 判 uncovered → `quality status` exit 2 → task complete / 发�
 
 ## 3. 保护属性
 
-security 与 safety 是保护属性，双重写死（创建期 + 运行期）：
+security、safety 与 privacy 是保护属性，双重写死（创建期 + 运行期）：
 
-- waiver 永不可用于它们（名称/属性命中禁词即拒绝）；
-- fast mode 永不跳过 security kind 检查；
+- waiver 永不可用于它们（检查名/kind/认领属性或 waiver 理由文本命中禁词即拒绝，禁词含 privacy/pii/隐私/个人信）；
+- fast mode 永不跳过 protected 检查（kind 为 security/safety，或认领属性含 security/safety/privacy——kind 与属性任一命中即免疫）；
 - 已执行的 FAIL 永不可豁免（waiver 只豁免 BLOCKED/SKIPPED——"跑不了的可以请假，跑挂了必须修"）。
 
 ## 4. 内置 fitness 规则（随变更跑的文本级防线）

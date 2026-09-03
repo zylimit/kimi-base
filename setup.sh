@@ -1,7 +1,7 @@
 #!/bin/sh
 # kimi-base 安装入口（POSIX sh）
 # 用法：sh setup.sh <target-project-dir> [--dry-run]
-# 等价于：node runtime/kimi-base.mjs install <target>，并打印插件安装提示。
+# 等价于：node .kimi-base/runtime/kimi-base.mjs install <target>，并打印插件安装提示。
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -19,7 +19,7 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-node "$SCRIPT_DIR/runtime/kimi-base.mjs" install "$TARGET" "$@"
+node "$SCRIPT_DIR/.kimi-base/runtime/kimi-base.mjs" install "$TARGET" "$@"
 CODE=$?
 
 if [ "$CODE" -eq 0 ]; then

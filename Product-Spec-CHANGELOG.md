@@ -1,5 +1,31 @@
 # Product Spec 变更日志
 
+## v2.0.1（2026-09-02）P5/P6 需求追溯补立
+
+### 为什么改
+
+P5（三面执法）与 P6（规模化与治理深化）的引擎能力已落地并有行为测试，但 Product-Spec 没有对应 REQ——trace 的覆盖率只能证明"已声明的有人验"，证明不了"已建的有人声明"。本变更只补立需求条目并接线既有测试，无语义扩张、无引擎行为变化。
+
+### 变更
+
+- 新增第 5 节小节「三面执法与规模化治理（v2.0 P5/P6）」：REQ-036 git hooks 电池（install --hooks）/ REQ-037 审计脚本独立 / REQ-038 dod 静态电池 / REQ-039 catalog discover / REQ-040 cochange / REQ-041 budget / REQ-042 fleet / REQ-043 privacy 保护底线 / REQ-044 release 发布就绪判定。
+- 每条验收行指向既有测试组（tests/audit.test.mjs、tests/scale.test.mjs），两文件头部加追溯锚点注释完成 trace 接线。
+- 版本号 v2.0.0 → v2.0.1（文档级补立，无行为变更）。
+
+## v2.0.0（2026-09-02）需求可判定化 + v2.0 新能力条目
+
+### 为什么改
+
+P4 落地 `spec lint`/`trace` 引擎动词后对本文档 dogfood：初版需求全部缺规范关键词与验收证据（NOT_NORMATIVE/NO_ACCEPTANCE），需求移动没有机器可判的完成定义。按"修规格文本，不削弱 lint 规则"原则逐条改写。
+
+### 变更
+
+- 全部 REQ-001~030 / NFR-001~006 改写为可判定形式：规范关键词（必须/不得/应当）+ 触发条件（当/若，EARS）+ 每条附「验收」行（指向真实测试组或门禁命令）。语义无扩大，仅把隐含约束写明。
+- 第 4 节复制面从 `template/` 旧布局订正为 v2.0 源布局=安装布局（P1 决策的规格追认）。
+- 新增 REQ-031 结构化对抗评审 / REQ-032 记忆法动词（recap/invariants/archive/sync-check）/ REQ-033 spec lint+trace+spec view / REQ-034 rules-audit / REQ-035 skills-lint+agents-lint。三面执法（three-surface）/fleet/discover 属后续 Phase，本轮不立项。
+- 第 6 节开头显式列出五性治理属性集（resilience/security/safety/privacy/reliability），使治理属性在需求语料中有着落（spec lint ATTRIBUTE_UNADDRESSED）。
+- 第 8 节成功标准第 4 条纳入 spec lint/trace 自检。
+
 ## v1.0.0（2026-08-13）初版
 
 ### 定位

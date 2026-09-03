@@ -1,0 +1,35 @@
+#!/bin/sh
+# kimi-base :: commit-msg —— commit message 是改动唯一耐久的解释，拒绝等于没说的。
+#
+# 规则：主题 <12 字符 → exit 1；主题命中废话黑名单（wip/fix/update/changes/
+# misc/stuff/temp/test/asdf，大小写不敏感，整词匹配）→ exit 1；>72 字符只警告。
+# Merge/Revert/注释行豁免。
+
+MSG_FILE=$1
+[ -f "$MSG_FILE" ] || exit 0
+
+SUBJECT=$(sed -n '1p' "$MSG_FILE" | sed 's/[[:space:]]*$//')
+
+case "$SUBJECT" in
+  \#* | "Merge "* | "Revert "*) exit 0 ;;
+esac
+
+LEN=$(printf '%s' "$SUBJECT" | wc -c | tr -d ' ')
+
+if [ "$LEN" -lt 12 ]; then
+  echo "kimi-base: commit 主题只有 $LEN 字符（<12）——说清楚改了什么、为什么。" >&2
+  exit 1
+fi
+
+LOWER=$(printf '%s' "$SUBJECT" | tr 'A-Z' 'a-z')
+case "$LOWER" in
+  wip | fix | update | changes | misc | stuff | temp | test | asdf)
+    echo "kimi-base: '$SUBJECT' 等于什么都没说——写出变化的行为。" >&2
+    exit 1 ;;
+esac
+
+if [ "$LEN" -gt 72 ]; then
+  echo "kimi-base: 主题 $LEN 字符，超过 72——细节放正文，主题只写摘要。" >&2
+fi
+
+exit 0

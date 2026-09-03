@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.ps1 text=auto eol=crlf
+*.cmd text=auto eol=crlf
+*.bat text=auto eol=crlf

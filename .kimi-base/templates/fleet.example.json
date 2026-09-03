@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "name": "example-fleet",
+  "repos": [
+    {
+      "id": "orders-api",
+      "path": "orders-api",
+      "owners": ["@orders-team"],
+      "provides": [
+        {
+          "contract": "orders-api",
+          "version": "2.1.0",
+          "kind": "http",
+          "status": "active",
+          "adr": "docs/adr/0003-orders-v2.md"
+        },
+        {
+          "contract": "orders-api",
+          "version": "1.5.0",
+          "kind": "http",
+          "status": "deprecated",
+          "sunset": "2026-12-31",
+          "adr": "docs/adr/0003-orders-v2.md"
+        }
+      ],
+      "consumes": [
+        { "contract": "inventory-events", "version": "2.x" },
+        { "contract": "payment-gateway", "version": "*", "external": true }
+      ]
+    },
+    {
+      "id": "inventory-service",
+      "path": "inventory-service",
+      "owners": ["@inventory-team"],
+      "provides": [
+        {
+          "contract": "inventory-events",
+          "version": "2.0.0",
+          "kind": "event",
+          "status": "active",
+          "adr": "docs/adr/0001-inventory-events.md",
+          "public": true
+        }
+      ],
+      "consumes": []
+    }
+  ]
+}
