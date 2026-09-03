@@ -44,7 +44,7 @@ const RT = RUNTIME_OK ? {} : { skip: '.kimi-base/runtime/kimi-base.mjs 未就绪
 /** 建独立临时目录，用例结束自动清理 */
 function mkdtemp(t, prefix = 'kimi-base-') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 }));
   return dir;
 }
 

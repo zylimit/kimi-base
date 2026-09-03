@@ -29,7 +29,7 @@ const BASH_OK = spawnSync('bash', ['--version'], { encoding: 'utf8' }).status ==
 
 function mkdtemp(t, prefix = 'kimi-base-audit-') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 }));
   return dir;
 }
 

@@ -35,7 +35,7 @@ const RECEIPTS_DIR = '.kimi-base/state/receipts';
 
 function mkdtemp(t, prefix = 'kimi-base-review-') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 }));
   return dir;
 }
 
