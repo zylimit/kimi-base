@@ -23,7 +23,7 @@
 ├─ 配置层 ── .kimi-base/harness.json（唯一配置源，严格校验）
 │            module-catalog.json / verification-matrix.json / adapters.json
 ├─ 引擎层 ── runtime/kimi-base.mjs（薄入口 33 行）+ runtime/lib/（31 模块，零依赖 Node stdlib）
-│            runtime/supervisor.mjs（开发态进程守护，448 行独立文件）
+│            runtime/supervisor.mjs（开发态进程守护，454 行独立文件）
 ├─ 状态层 ── .kimi-base/state/（git-ignored）：tasks/receipts/evidence/ledger/gate-log/fast/
 │            waivers/arch-trend/review·review-backlog/compaction-note
 ├─ 记忆层 ── progress.md + Product-Spec*.md + DEV-PLAN.md（三文件同步）+ feedback/ 进化引擎

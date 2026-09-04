@@ -5,9 +5,26 @@
     "riskDefault": "medium"
   },
   "governance": {
-    "attributes": ["resilience", "security", "safety", "privacy", "reliability"],
-    "protected": ["security", "safety", "privacy"],
-    "tiers": ["critical", "high", "medium", "low", "minimal", "none"]
+    "attributes": [
+      "resilience",
+      "security",
+      "safety",
+      "privacy",
+      "reliability"
+    ],
+    "protected": [
+      "security",
+      "safety",
+      "privacy"
+    ],
+    "tiers": [
+      "critical",
+      "high",
+      "medium",
+      "low",
+      "minimal",
+      "none"
+    ]
   },
   "budget": {
     "maxChangedFiles": 80,
@@ -17,9 +34,27 @@
   },
   "quality": {
     "riskChecks": {
-      "low": ["catalog-lint", "fitness"],
-      "medium": ["catalog-lint", "fitness", "arch-check", "selftest"],
-      "high": ["catalog-lint", "fitness", "arch-check", "adr-check", "selftest", "unit", "manifest-check", "pack-check", "attributes"]
+      "low": [
+        "catalog-lint",
+        "fitness"
+      ],
+      "medium": [
+        "catalog-lint",
+        "fitness",
+        "arch-check",
+        "selftest"
+      ],
+      "high": [
+        "catalog-lint",
+        "fitness",
+        "arch-check",
+        "adr-check",
+        "selftest",
+        "unit",
+        "manifest-check",
+        "pack-check",
+        "attributes"
+      ]
     },
     "runtimeValidityHours": 24
   },
@@ -28,22 +63,49 @@
   },
   "context": {
     "budgetTokens": 60000,
-    "deny": [".env", ".env.*", "*.pem", "*.key", "id_rsa*", ".ssh/**", ".aws/**", "*secret*", "*credential*"]
+    "deny": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "id_rsa*",
+      ".ssh/**",
+      ".aws/**",
+      "*secret*",
+      "*credential*"
+    ]
   },
   "retention": {
     "evidenceDays": 30,
     "ledgerMaxEntries": 300
   },
   "spec": {
-    "requirementDirs": ["Product-Spec.md"],
-    "testGlobs": ["tests/**"],
+    "requirementDirs": [
+      "Product-Spec.md"
+    ],
+    "testGlobs": [
+      "tests/**"
+    ],
     "minCoverage": 1.0
+  },
+  "rulesAudit": {
+    "maxUnenforced": 0
   },
   "hooks": {
     "stopMaxBlocks": 3
   },
   "feedback": {
-    "signalKeywords": ["不对", "错了", "重来", "不是这样", "别这样", "wrong", "not what i", "redo", "don't do that"]
+    "signalKeywords": [
+      "不对",
+      "错了",
+      "重来",
+      "不是这样",
+      "别这样",
+      "wrong",
+      "not what i",
+      "redo",
+      "don't do that"
+    ]
   },
   "services": {}
 }

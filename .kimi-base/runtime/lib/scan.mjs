@@ -39,6 +39,11 @@ const AMBIGUOUS = [
   '尽快', '友好', '合理', '适当', '良好', '灵活', '易用', '尽可能'
 ];
 const BLOCK_LINES = 14; // 一个需求的"块" = id 所在行起 14 行
+// 需求生命周期标记（ADR-0011）：块内 planned 状态标记把需求标为规划中——
+// 规格先行与 trace 100% 覆盖的缝合机制：planned 不计入覆盖率分母，但仍须通过
+// 全部可判定性 lint；实现落地的同 commit 摘除标记，trace 自动接管看护。
+const PLANNED_SEEN = /状态：\s*planned/;
+const PLANNED_PHASE = /状态：\s*planned[（(]\s*(P[0-9A-Za-z.]+)\s*[)）]/;
 
 /** requirementDirs 条目既可以是 .md 文件也可以是目录（目录递归取 *.md）。 */
 async function requirementFiles(ctx) {
@@ -95,8 +100,20 @@ export async function specLint(ctx) {
         continue;
       }
       seen.set(id, file);
-      ids.push({ id, file, line: index + 1 });
-      const block = lines.slice(index, Math.min(lines.length, index + BLOCK_LINES)).join('\n');
+      // 块在下一个"其他 REQ id"出现处截断：跨条目渗漏会让上一条"继承"下一条的标记
+      // （如 planned 状态标记）与文本；本条目自己的验收行引用自身 id 不构成截断点。
+      const windowLines = lines.slice(index, Math.min(lines.length, index + BLOCK_LINES));
+      const nextReqAt = windowLines.findIndex((line, offset) => {
+        if (offset === 0) return false;
+        const other = REQ_ID.exec(line);
+        return other !== null && other[1] !== id;
+      });
+      const block = (nextReqAt > 0 ? windowLines.slice(0, nextReqAt) : windowLines).join('\n');
+      const phaseMatch = PLANNED_PHASE.exec(block);
+      ids.push({ id, file, line: index + 1, planned: Boolean(phaseMatch), phase: phaseMatch?.[1] ?? null });
+      if (!phaseMatch && PLANNED_SEEN.test(block)) {
+        findings.push({ file, line: index + 1, severity: 'error', code: 'PLANNED_NO_PHASE', id, message: `${id} 的 planned 标记缺 phase 编号（形如 状态：planned(P3)）；没有落点的规划是许愿` });
+      }
       if (!NORMATIVE.test(block)) {
         findings.push({ file, line: index + 1, severity: 'error', code: 'NOT_NORMATIVE', id, message: `${id} 无规范关键词（SHALL/MUST/必须/不得/应当）；不约束任何东西的需求无法验证` });
       }
@@ -150,7 +167,7 @@ const DOC_GLOBS = ['docs/**', '.kimi-base/templates/**', '.kimi-code/**', 'plugi
 export async function traceRequirements(ctx) {
   const spec = await specLint(ctx);
   if (spec.degraded) return { degraded: true, reason: spec.reason };
-  const declared = new Map(spec.ids.map((item) => [item.id, { id: item.id, file: item.file, line: item.line, tests: [], code: [] }]));
+  const declared = new Map(spec.ids.map((item) => [item.id, { id: item.id, file: item.file, line: item.line, planned: Boolean(item.planned), phase: item.phase ?? null, tests: [], code: [] }]));
   const requirementSet = new Set(spec.documents);
 
   const tracked = await trackedPaths(ctx, ctx.catalogLimits.maxTrackedPaths);
@@ -189,7 +206,12 @@ export async function traceRequirements(ctx) {
     }
   }
 
-  const rows = [...declared.values()].map((record) => ({
+  // planned 需求不计入覆盖率分母（ADR-0011）：规格先行时它们还没有测试可引；
+  // 但引用照收——planned 需求一旦被 tests/ 引用，说明实现已落地而标记未摘。
+  const allRecords = [...declared.values()];
+  const plannedRecords = allRecords.filter((record) => record.planned);
+  const plannedWithTests = plannedRecords.filter((record) => record.tests.length > 0);
+  const rows = allRecords.filter((record) => !record.planned).map((record) => ({
     id: record.id,
     definedIn: record.file,
     line: record.line,
@@ -202,12 +224,16 @@ export async function traceRequirements(ctx) {
   }));
   const unverified = rows.filter((row) => !row.verified);
   const minCoverage = ctx.spec.minCoverage;
-  const coverage = rows.length ? (rows.length - unverified.length) / rows.length : 0;
+  // 零 active 且存在 planned = 空真（无可验之事）；零 active 且零 planned 保持 0（旧语义）。
+  const coverage = rows.length ? (rows.length - unverified.length) / rows.length : (plannedRecords.length ? 1 : 0);
   return {
     ok: coverage >= minCoverage && dangling.length === 0,
     coverage: Number(coverage.toFixed(4)),
     minCoverage,
     total: rows.length,
+    planned: plannedRecords.length,
+    plannedIds: plannedRecords.map((record) => `${record.id}(${record.phase})`).slice(0, 20),
+    plannedWithTests: plannedWithTests.map((record) => record.id),
     verified: rows.length - unverified.length,
     unverified: unverified.map((row) => row.id),
     dangling: dangling.slice(0, 50),

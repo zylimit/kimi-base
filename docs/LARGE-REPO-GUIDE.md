@@ -52,7 +52,25 @@
 | `arch check --scan` | 1373ms |
 | `gate`（2 个琐碎检查） | 518ms |
 
-对照上方设计目标（60 万行/64 模块 lint<10s、impact<5s）余量约两个数量级。**诚实外推边界**：合成仓只有约 1 万行且为均匀合成结构，文件数×40、行数×60 的真实仓其 git 操作、全文扫描与 import 边解析的增长曲线未必线性——60 万行真实校准仍挂 TODO #7，本节数字只证明"机制本身没有明显常数级病态"，不证明 60 万行达标。
+对照上方设计目标（60 万行/64 模块 lint<10s、impact<5s）余量约两个数量级。**诚实外推边界**：合成仓只有约 1 万行且为均匀合成结构——本节数字只证明"机制本身没有明显常数级病态"，真实仓校准见下节。
+
+### 真实仓校准（v3.0 P0，2026-09-04，WSL2 + Node 24，Intel Core Ultra 9 285H）
+
+真实仓 2196 tracked 文件 / 38.7 万行代码 / 222 模块 / 2299 条真实 import 边（decompiled Claude Code 源，含大量循环依赖）：
+
+| 命令 | 中位耗时（3 次） | 退出码 |
+| --- | --- | --- |
+| `catalog lint` | 257ms | 0 |
+| `impact --git`（改枢纽模块 utils，受影响 100+） | 181ms | 0 |
+| `arch check --scan`（2101 文件 import 解析） | 1644ms | 1（真实违规，见下） |
+| `fitness --all` | 1480ms | 1（真实命中） |
+| `gate`（4 检查 medium 档） | 843ms | 0 |
+| `context pack --focus`（60000 字符预算打满） | 197ms | 0 |
+| `catalog discover`（最重动词：import 边推导） | 2555ms | 0 |
+
+结论：**设计目标成立且余量大，但成本驱动是"文件数×模块数"而非代码行数**（本仓 lint/impact 比 4954 文件合成仓还快）。读文件内容的动词（arch scan/fitness）随行数线性增长，60 万行外推 2.5–3s 仍在舒适区；模块数上千（monorepo 每包一模块）才是 lint 10s 目标真正要守的边界。外推限制：本测量在 WSL2 原生 ext4；Windows 裸机/drvfs 上 git 与文件 IO 慢数倍；gate 耗时取决于矩阵真实检查。
+
+校准同时发现 discover 真实仓健壮性三缺陷（重复模块/环不处理/断环后 tier 不重算）与 fitness 重复报告——已立项 REQ-068 由 P2 修复。校准现场保留于 `/tmp/kimi-perf-calib`（可复核）。
 
 ## 6. 实战教训（digifiber-conflation 七克隆，详录 CROSS-POLLINATION.md §实战）
 

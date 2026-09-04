@@ -82,6 +82,30 @@ P7c 文档与发版 ◄── P7b dogfood 双修 ◄── P7a 测试补盲+dogf
 | P7b ✅ | dogfood 缺陷双修：fast 借账不能关闭 task；stale≠完整性失败（dod STALE 态/release 完整性≠新鲜度） | 测试 188/188、dogfood 全程翻绿 release READY |
 | P7c ✅ | 文档与发版：ADR-0002~0007、README/ARCHITECTURE/CAPABILITY-MATRIX/CROSS-POLLINATION 刷新、CHANGELOG.md、版本 2.0.0 | adr check 7 活跃 0 幽灵；全量闸见 progress.md P7c 条目 |
 
+## v3.0 重构 Phase 表（强度可计算的治理；依据 ADR-0008~0011，REQ-051~068）
+
+```
+P0 基线消化 ──► P1 规格与计划 ──► P2 CLI 契约+discover 健壮性 ──► P3 强度策略引擎 ──► P4 Receipt v2+贷款账本
+                                                                                        │
+P10 eval+总收尾 ◄── P9 CI/发布面 ◄── P8 反馈分层+采用阶梯+安装器 ◄── P7 宪法瘦身+修复指令体 ◄── P6 feedback 引擎化 ◄── P5 评审强化
+```
+
+| Phase | 内容（REQ 激活集） | 完成证据 |
+| --- | --- | --- |
+| P0 ✅ | TODO #7 真实仓性能校准（38.7 万行/222 模块，发现 discover 三缺陷立项 REQ-068）/ #9 插件 TUI 实装 E2E 全 PASS（F1/F2 限制如实记录）/ #10 执法率 16.7%→50% 且 maxUnenforced=0 转门禁（红锁验证）/ 文档漂移三修 | progress.md 2026-09-04 P0 条目；rules-audit 阈值 0 exit 0；校准表入 LARGE-REPO-GUIDE §5 |
+| P1 ✅ | Product-Spec v3.0.0（REQ-051~068 立项）+ CHANGELOG + ADR-0008~0011 + REQ-067 planned 标记引擎落地（红测先行 7 用例）+ 本表 | spec lint 0 error、trace 100%（51 active，planned 17 单列）、tests 27/27、adr check 0 幽灵 |
+| P2 | CLI 契约注册表（REQ-056）+ discover 真实仓健壮性（REQ-068：SCC 环处理/重复模块/tier 重算/fitness 去重） | cli 契约测试组全绿；38.7 万行真实仓 discover→lint→arch 链路复跑走通 |
+| P3 | 强度策略引擎（REQ-051/052）：strength.json schema、resolver（extends 只收紧/floor 只升不降/shadow/decision log）、strength 动词族、policyHash | strength 测试组全绿 + 摘 planned 标记 |
+| P4 | Receipt v2 绑定面（REQ-053）+ fast 贷款账本（REQ-054）+ 可提交证据模式（REQ-055） | receipt/fast/evidence 测试组全绿 |
+| P5 | 评审强化（REQ-057）：authorship 账本接线、静态发现入 review-pack、review 消费策略轴 | review 测试组全绿 |
+| P6 | feedback 引擎化（REQ-058）：record/scan/propose、聚类毕业、人确认落地、载荷纳入 | feedback 测试组全绿 |
+| P7 | 宪法瘦身（REQ-059：AGENTS.md 地图化 ≤6000 字节）+ 修复指令体（REQ-060）+ quarantine 原语（REQ-061） | rules-audit 阈值保持 0；gate/dod nextStep 100% |
+| P8 | 三层反馈分级（REQ-062）+ 渐进采用阶梯（REQ-063）+ 棘轮持久化（REQ-064）+ 安装器锁与 marker（REQ-065）+ 压缩边界诚实降级文档（F2 结论落地） | init/arch/install 测试组全绿 |
+| P9 | CI 模板扩展（GitLab 变体+定时空跑+汇总判定）+ release 接入强度 floor | 模板测试 + release 测试组全绿 |
+| P10 | 自我 eval 套件（REQ-066）+ 真实仓性能复测 + v3.0.0 发布（release verb 全绿） | eval ≥20 任务两套分列；release READY |
+
+每 Phase 完成判据（机械）：行为测试全绿（临时 git 仓、断言退出码与 JSON 字段、红测先行）→ dod 0 → gate PASS 绑当前指纹 → manifest --check 0 → trace 100% → spec lint 0 error → 摘对应 REQ planned 标记 → progress.md 同 commit。
+
 ## 风险与控制
 
 | 风险 | 控制 |

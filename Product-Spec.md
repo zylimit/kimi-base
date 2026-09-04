@@ -1,6 +1,6 @@
 # kimi-base Product Spec
 
-版本：v2.0.1 · 状态：v2.0 重构进行中 · 变更史见 `Product-Spec-CHANGELOG.md`
+版本：v3.0.0 · 状态：v3.0 重构进行中（v3.0 需求节主体为 planned 标记，随 Phase 逐批激活） · 变更史见 `Product-Spec-CHANGELOG.md`
 
 ## 1. 定位
 
@@ -50,7 +50,7 @@
   验收：无标记目录中危险命令 hook 测试 exit 0 且无输出。
 - REQ-008 项目级 custom agents 八角色（implementer/code-reviewer/tester/deployer/researcher/progress-recorder/feedback-observer/evolution-runner）必须用 Kimi 原生 frontmatter `tools`/`disallowedTools`/`subagents: []` 实现职责隔离与机械防递归。
   验收：八个 agent 文件 frontmatter 全部可解析且合法（doctor 与资产测试锁定）。
-- REQ-009 项目级 skills 十六个工作流，frontmatter 必须合规：name==目录名（kebab-case）、description 必填且 ≤180 字符、不得写成流程摘要；模板必须以 `${KIMI_SKILL_DIR}` 引用子文件。
+- REQ-009 项目级 skills 十六个工作流，frontmatter 必须合规：name==目录名（kebab-case）、description 必填且 ≤500 字符硬顶（>220 字符触发警告，撰写指引 ≤180）、不得写成流程摘要；模板必须以 `${KIMI_SKILL_DIR}` 引用子文件。
   验收：`skills-lint` 与 doctor 的 frontmatter 校验 exit 0。
 - REQ-010 插件斜杠命令 `/kimi-base:init|doctor|status|verify|arch|recap|record|fast` 必须全部可用。
   验收：commands/*.md 八件齐备且 frontmatter 可解析（插件资产测试锁定）。
@@ -135,13 +135,71 @@
 - REQ-044 发布就绪判定：当执行 `release` 时，引擎必须组装八项条件（dod 静态电池/fast 窗口关闭/fast 欠账已还/账本链与证据完好/当前指纹 fresh 回执/三文件同步干净/评审 backlog 无过期/风险扫描为建议项）；阻断项未过必须 exit 2 并逐一点名；该命令必须永不打 tag、永不 push、永不建分支。
   验收：release 测试组（干净夹具 + fresh gate 回执 READY exit 0 并明示永不 tag/push/建分支；缺 fresh 回执 exit 2 点名 receipt-fresh；fast 窗口开启 exit 2 点名 fast-mode-closed）全绿。
 
+### v3.0 强度可计算的治理（strength policy 时代）
+
+设计依据：docs/adr/0008（强度策略引擎）/ 0009（Receipt v2 与贷款账本）/ 0010（feedback 引擎化）/ 0011（CLI 契约注册表与 planned 标记）。planned 状态标记的语法与语义由本节末条需求定义；实现 Phase 落地的同 commit 摘除对应标记。
+
+- REQ-051 强度策略引擎：当 `.kimi-base/strength.json` 存在时，引擎必须提供四内置档（explore/rapid/balanced/strict），每档是 12 个封闭控制轴（verificationBreadth/testStrength/reviewerMode/reviewStages/reviewLenses/reviewRounds/evidenceLevel/deferralMode/completionMode/requireSpecTrace/contextBudgetChars/budgetMaxFiles）的向量，未知轴必须配置期拒绝；自定义档 extends 具名档时逐轴只允许收紧，任何降级必须报 STRENGTH_WEAKENING exit 1；floor（risk tier/operation/保护属性/路径四类）只能抬升不能降低，冲突取最高档；`rollout: shadow` 时解析结果必须只报告不阻断且 shadow 状态响亮可见。
+  状态：planned(P3)
+  验收：strength 测试组（四档单调性/extends 降级拒/floor 抬升/shadow 不阻断）全绿。
+- REQ-052 strength 动词族：当执行 `strength list/status/set/explain` 时，引擎必须输出当前生效档与逐轴生效值；explain 必须给出每个轴的最终值来源（内置档/extends/floor 类别）；每次解析必须写有界 decision log（policyRevision/inputDigest/reasons）。
+  状态：planned(P3)
+  验收：strength 测试组（explain 逐轴来源/decision log 字段齐备且有界）全绿。
+- REQ-053 Receipt v2 绑定面：当写 gate/评审回执时，引擎必须在 diffHash 之外增绑 policyHash、engineHash（runtime 树 LF 归一化哈希，排除运行态路径）与 catalogHash；策略收紧、引擎变化或 catalog 变化后 `receipt verify` 必须 exit 4（stale）且链完好不判篡改。
+  状态：planned(P4)
+  验收：receipt 测试组（改策略/改引擎字节/改 catalog 三类 stale 各 exit 4；链完好 exit 不判 2）全绿。
+- REQ-054 fast 证据贷款账本：当 fast 窗口内跳过检查时，引擎必须把每条被跳检查记 DEFERRED 债务条目入哈希链账本；关窗、窗口过期、删除 fast 状态文件必须不清债；唯一偿还路径必须是窗口外同检查 fresh PASS；protected 检查与已执行 FAIL 必须永不进入可延期集；`risk` 必须报 FAST_MODE_DEBT 直至偿清。
+  状态：planned(P4)
+  验收：fast 测试组（借账入链/关窗债在/删状态文件债在/fresh PASS 偿还/protected 拒延期）全绿。
+- REQ-055 可提交证据模式：当 harness.json 配置 `evidence.mode: "committed"` 时，回执与账本文件必须纳入 git 跟踪且证据日志本体永不入库（回执只记其 sha256）；CI 或换机后 `receipt verify` 必须能直接验链 exit 0；默认必须保持 local 模式零负担。
+  状态：planned(P4)
+  验收：evidence 测试组（committed 模式克隆仓验链通过/日志不入库/local 默认不变）全绿。
+- REQ-056 CLI 契约注册表：当执行任意 verb 时，dispatch、help 与 flag 校验必须从 `lib/cli-contracts.mjs` 单源派生；未知 flag、重复 flag、空值 flag 必须 exit 1 并列出该 verb 合法 flag 集；selftest 必须双向钉死（每个路由有契约、每个契约有路由）；40 个既有 verb 名称与语义必须保持兼容。
+  状态：planned(P2)
+  验收：cli 契约测试组（全 verb flag 表锁定/未知 flag 拒/selftest 双向断言）全绿。
+- REQ-057 评审独立性接线：当评审 lens 报告时，引擎必须记录执行者身份并入 authorship 账本；lens 执行者属于该 diff 作者集时 verdict 必须拒出 ACCEPT；无身份数据时必须诚实输出 authorshipEnforced:false；review-pack 必须注入 fitness/arch-check/budget 当前发现供 lens 引用。
+  状态：planned(P5)
+  验收：review 测试组（作者自审拒 ACCEPT/无数据诚实标注/静态发现在证据包内）全绿。
+- REQ-058 feedback 引擎化：当执行 `feedback record/scan/propose` 时，引擎必须机器维护 occurrences 与 FEEDBACK-INDEX（同主题去重）；scan 必须检出毕业候选（单条 occurrences≥3、同失败模式跨文件 3+、无覆盖模式 5+）；propose 必须按"可执行 check > fitness 规则 > skill 步骤 > AGENTS.md 散文"优先级给结构化提议且永不自动改规则；被拒提议必须记 skipped 不再重复提议。
+  状态：planned(P6)
+  验收：feedback 测试组（计数去重/三档聚类候选/优先级排序/skipped 不重复/零自动落地）全绿。
+- REQ-059 宪法瘦身与执法率门禁：当 rules-audit 配置 maxUnenforced 阈值时，无执法规则超阈必须 exit 1；根 AGENTS.md 必须保持"地图非手册"形态（不变量+指针，细则下沉 .kimi-base/rules/），体积不得超 6000 字节。
+  状态：planned(P7)
+  验收：rules-audit 阈值红锁测试（注入无执法规则 exit 1）+ agents-lint 体积断言全绿。
+- REQ-060 修复指令体：当 gate/dod/quality 输出 FAIL 或 BLOCKED 时，每条未过项必须带 nextStep 字段（可直接执行的修复命令或路径），不得只报症状。
+  状态：planned(P7)
+  验收：gate/dod 测试组（FAIL/BLOCKED 条目 100% 带 nextStep）全绿。
+- REQ-061 quarantine 原语：当读取任何运行态 JSON 失败（损坏/不可解析）时，引擎必须把损坏文件隔离为 .corrupt-<时间戳> 并记录事件，不得静默重建、不得静默保留按健康数据使用。
+  状态：planned(P7)
+  验收：state 测试组（注入损坏 JSON→隔离+事件/不静默重建）全绿。
+- REQ-062 三层反馈分级：当 verification-matrix 声明检查时，每条检查必须标注反馈层（inner=commit 前秒级可阻塞/middle=评审级可阻塞/outer=趋势健康信号性）；dod 输出必须按层组织，outer 层失败必须响亮可见但不混入 inner 判定。
+  状态：planned(P8)
+  验收：matrix/dod 测试组（三层标注强制/outer 不阻断 inner 判定但可见）全绿。
+- REQ-063 渐进采用阶梯：当执行 `catalog discover --write` 或 init 时，引擎必须支持 `--level L0|L1|L2|L3`（L0 仅 hooks / L1 +task·gate / L2 +五性·arch / L3 全量+fleet），按级别生成对应治理配置；缺省必须为 L1。
+  状态：planned(P8)
+  验收：init 测试组（四档生成物差异/缺省 L1）全绿。
+- REQ-064 棘轮 best-ever 持久化：当 arch trend 记录历史时，历史最优值必须显式记录为独立字段，样本文件截断不得使最优天花板回升。
+  状态：planned(P8)
+  验收：arch 测试组（截断样本后 best-ever 不回升/新债仍红/还债天花板永降）全绿。
+- REQ-065 安装器锁与 marker：当 install/upgrade 执行时，必须支持 dry-run 预演、独占锁与 maintenance marker；marker 存在期间 doctor 与引擎治理动词必须拒跑并点名 marker；失败必须逆序回滚不留半装态。
+  状态：planned(P8)
+  验收：install 测试组（dry-run 零写入/marker 拒跑/故障注入回滚）全绿。
+- REQ-066 自我 eval 套件：当脚手架自身改动时，tests/eval/ 必须提供 ≥20 个代表性任务，分 capability（低通过爬坡）与 regression（近 100% 防回退）两套；regression 套必须进 CI。
+  状态：planned(P10)
+  验收：eval 测试组（任务数 ≥20/两套分列/regression 在 CI 电池内）全绿。
+- REQ-067 需求生命周期标记：当需求块内含 planned 状态标记（"状态"冒号后接 planned 与括号包裹的 phase 编号）时，spec lint 必须照常做可判定性检查且标记缺 phase 编号必须报 PLANNED_NO_PHASE（exit 1）；trace 必须把 planned 需求排除出覆盖率分母（零 active 时覆盖率为空真 1）、单独报告 planned 计数；planned 需求被 tests/ 引用必须报 PLANNED_HAS_TESTS 警告。
+  验收：tests/spec.test.mjs「需求生命周期标记 planned」用例组全绿（红测先行于实现）。
+- REQ-068 discover 真实仓健壮性：当在含循环 import 的真实仓库执行 `catalog discover` 时，引擎必须做环处理（SCC 凝聚或环标注豁免）且不得生成 paths 完全相同的重复模块；断环后分层必须重算；`fitness --all` 对同一命中必须只报一次。
+  状态：planned(P2)
+  验收：38.7 万行真实仓校准复跑：discover→catalog lint→arch check --scan 链路可走通（允许 baseline 固化存量债），fitness 重复命中回归测试全绿。
+
 ## 6. 非功能需求
 
 五性治理属性集：resilience / security / safety / privacy / reliability（其中 security/safety/privacy 为保护底线）。
 
 - NFR-001 治理引擎（kimi-base.mjs + lib/）必须零第三方运行时依赖：仅用 Node 18 LTS 内置模块，package.json 运行时 dependencies 必须为 0 项。
   验收：引擎隔离测试扫描全部 import 断言 100% 为 node: 前缀。
-- NFR-002 性能预算：PreToolUse hook 常规路径必须 <100 ms；60 万行/64 模块合成仓 impact 必须 <5 s、catalog lint 必须 <10 s（合成基准）。
+- NFR-002 性能预算：PreToolUse hook 常规路径必须 <100 ms；60 万行/64 模块仓 impact 必须 <5 s、catalog lint 必须 <10 s。真实仓锚点（2026-09-04，38.7 万行/2196 文件/222 模块，WSL2+Node 24）：catalog lint 257 ms、impact 181 ms、arch check --scan 1644 ms、gate（4 检查）843 ms；成本驱动是文件数×模块数而非行数，外推边界按模块数上千才进秒级（见 docs/LARGE-REPO-GUIDE §5）。
   验收：性能冒烟测试（500 文件合成仓 catalog lint <10 s）全绿。
 - NFR-003 跨平台：必须支持 Linux/macOS 原生与 Windows Git Bash；ps1 脚本必须 100% ASCII。
   验收：ps1 ASCII 资产测试全绿；CI 矩阵覆盖 ubuntu + windows 双平台。

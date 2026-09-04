@@ -53,7 +53,7 @@
 | hooks .sh/.ps1 双平台双写 | cc/opencode | Kimi hook 直接调 node 单文件，天然跨平台，消灭双写维护税 |
 | 自动 push/自动部署自动化 | 多家曾考虑 | 远端副作用一律人工确认（审批三档 HIGH） |
 | 项目级 config 注入（~/.kimi-code/config.toml 改写） | — | Kimi 配置为用户级；项目差异只落 .kimi-base/harness.json |
-| hook 内联跑重检查（全量测试进 Stop hook） | — | hook 须轻量（默认 30s 上限）；重检查走 gate 命令由 agent 显式执行 |
+| hook 内联跑重检查（全量测试进 Stop hook） | — | hook 须轻量（kimi.plugin.json 实测 5–10s 超时）；重检查走 gate 命令由 agent 显式执行 |
 | 八属性全集默认强制 | cursor/pi | 默认五属性（用户指定），扩展属性可选声明；降认知负担 |
 | 单文件 3033-5860 行的段落分区风格 | cc/cursor | 保留单文件但要求分区注释+自测锚点；超过可维护性即拆 lib/（留作演进口） |
 

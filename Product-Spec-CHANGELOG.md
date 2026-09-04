@@ -1,5 +1,29 @@
 # Product Spec 变更日志
 
+## v3.0.0（2026-09-04）v3.0 立项：强度可计算的治理 + 需求生命周期标记
+
+### 为什么改
+
+对 dsh-base / cc-base / codex-base 三仓逐行级对标与业界调研（OpenAI harness engineering、Anthropic long-running agents、Fowler harness 框架、ETH AGENTS.md 实证、Tessl position paper）后，用户拍板 v3.0 三个方向：规划+逐 Phase 推进、强度策略引擎档化模型、feedback 进化引擎化。规格先行要求一次立全 v3 需求，但 trace 100% 覆盖门禁使"未实现的需求"无法立项——为此先落地 REQ-067 生命周期标记（planned 不计入覆盖率分母但仍受可判定性 lint），再以 planned 形态立全 REQ-051~068。
+
+### 变更
+
+- 新增第 5 节小节「v3.0 强度可计算的治理」：REQ-051/052 强度策略引擎与动词族（ADR-0008）/ REQ-053 Receipt v2 绑定面 / REQ-054 fast 证据贷款账本 / REQ-055 可提交证据模式（ADR-0009）/ REQ-056 CLI 契约注册表（ADR-0011）/ REQ-057 评审独立性接线 / REQ-058 feedback 引擎化（ADR-0010）/ REQ-059 宪法瘦身与执法率门禁 / REQ-060 修复指令体 / REQ-061 quarantine 原语 / REQ-062 三层反馈分级 / REQ-063 渐进采用阶梯 / REQ-064 棘轮 best-ever 持久化 / REQ-065 安装器锁与 marker / REQ-066 自我 eval 套件 / REQ-068 discover 真实仓健壮性（P0 真实仓校准发现的缺陷立项）。全部 `状态：planned(P<n>)`。
+- 新增 REQ-067 需求生命周期标记（本条为 active，P1 落地，验收 tests/spec.test.mjs「需求生命周期标记 planned」用例组）。
+- NFR-002 性能预算更新真实仓锚点（38.7 万行/2196 文件/222 模块实测：lint 257ms、impact 181ms、arch scan 1644ms、gate 843ms），外推边界改按"文件数×模块数"表述。
+- 版本号 v2.0.2 → v3.0.0。
+
+## v2.0.2（2026-09-04）REQ-009 阈值与引擎契约对齐
+
+### 为什么改
+
+v3.0 重构 P0 基线盘点发现 REQ-009 声称 "description ≤180 字符"，但引擎 `skills-lint` 实际契约是 >500 error / >220 warning——规格文本声称了执法并不存在的阈值（规格过声称）。按"被测图与文档不一致时修文档"原则对齐到被执法的契约，≤180 保留为撰写指引。
+
+### 变更
+
+- REQ-009 阈值表述改为 "≤500 字符硬顶（>220 字符触发警告，撰写指引 ≤180）"，验收行不变（`skills-lint` 与 doctor exit 0 本就测的是引擎契约）。
+- 版本号 v2.0.1 → v2.0.2（文档级订正，无行为变更）。
+
 ## v2.0.1（2026-09-02）P5/P6 需求追溯补立
 
 ### 为什么改

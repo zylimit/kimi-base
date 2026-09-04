@@ -2,7 +2,7 @@
  * tests/spec.test.mjs
  * 需求可判定性与追溯（spec lint / trace / spec view）、rules-audit、skills-lint、agents-lint
  * 的契约测试 + 本仓资产锚点测试。
- * 追溯：REQ-033（spec/trace）REQ-034（rules-audit）REQ-035（skills/agents-lint）。
+ * 追溯：REQ-033（spec/trace）REQ-034（rules-audit）REQ-035（skills/agents-lint）REQ-067（planned 生命周期标记）。
  *
  * 运行：node --test tests/spec.test.mjs
  *
@@ -451,5 +451,101 @@ describe('资产锚点与 dogfood', () => {
       const r = run(args, { cwd: REPO });
       assert.equal(r.code, 0, `本仓 ${args.join(' ')} 必须 exit 0：\n${out(r)}`);
     }
+  });
+});
+
+// ---------------- 需求生命周期标记 planned（REQ-067） ----------------
+
+describe('需求生命周期标记 planned', RT, () => {
+  /** planned 需求条目：reqEntry 的块内（id 行起 14 行窗口内）补一行状态标记。 */
+  const plannedEntry = (id, status) => `${reqEntry(id)}\n  状态：${status}`;
+
+  /** trace 的 planned 统计走 stdout JSON（规格契约）：整体解析失败时退回内嵌 JSON 对象。 */
+  const parseTraceJson = (r) => {
+    try { return JSON.parse(r.stdout); } catch { /* 退回内嵌 JSON 块 */ }
+    const start = r.stdout.indexOf('{');
+    const end = r.stdout.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try { return JSON.parse(r.stdout.slice(start, end + 1)); } catch { /* 无 JSON */ }
+    }
+    return null;
+  };
+
+  test('spec lint：合法 planned 标记（半角 planned(P3) 与全角 planned（P2.1））→ exit 0', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': `# 需求\n\n${plannedEntry(reqId(301), 'planned(P3)')}\n${plannedEntry(reqId(302), 'planned（P2.1）')}\n\n${ATTRIBUTES_LINE}\n`,
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+  });
+
+  test('spec lint：planned 无可解析 phase 编号（裸 planned / 空括号）→ PLANNED_NO_PHASE exit 1', (t) => {
+    for (const status of ['planned', 'planned()']) {
+      const dir = specFixture(t, {
+        'specs/a.md': `# 需求\n\n${plannedEntry(reqId(303), status)}\n`,
+      });
+      const r = run(['spec', 'lint'], { cwd: dir });
+      assert.equal(r.code, 1, `状态：${status} 必须判 error：\n${out(r)}`);
+      assert.match(r.stdout, /PLANNED_NO_PHASE/, out(r));
+    }
+  });
+
+  test('spec lint：planned 不免除可判定性——缺规范关键词照判 NOT_NORMATIVE', (t) => {
+    const dir = specFixture(t, {
+      // 无 必须/不得/应当，也无验收行；planned 不是写烂需求的许可证
+      'specs/a.md': `# 需求\n\n- ${reqId(304)} 系统支持登录。\n  状态：planned(P3)\n`,
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, /NOT_NORMATIVE/);
+  });
+
+  test('trace：active 有引用 + planned 无引用 → exit 0、coverage=1、planned 计数=1', (t) => {
+    if (!needGit(t)) return;
+    const dir = specFixture(t, {
+      'specs/a.md': `# 需求\n\n${reqEntry(reqId(401))}\n${plannedEntry(reqId(402), 'planned(P3)')}\n`,
+    });
+    write(dir, 'tests/a.test.mjs', `// 覆盖 ${reqId(401)}\n`);
+    const r = run(['trace'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    const json = parseTraceJson(r);
+    assert.ok(json, `trace stdout 必须含 planned 统计的 JSON 输出：\n${out(r)}`);
+    assert.equal(json.coverage, 1, out(r));
+    assert.equal(json.planned, 1, out(r));
+  });
+
+  test('trace：全部 REQ 均 planned（0 条 active）→ exit 0 且 coverage=1（零 active 为空真）', (t) => {
+    if (!needGit(t)) return;
+    const dir = specFixture(t, {
+      'specs/a.md': `# 需求\n\n${plannedEntry(reqId(403), 'planned(P3)')}\n${plannedEntry(reqId(404), 'planned(P1)')}\n`,
+    });
+    const r = run(['trace'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    const json = parseTraceJson(r);
+    assert.ok(json, `trace stdout 必须含 planned 统计的 JSON 输出：\n${out(r)}`);
+    assert.equal(json.coverage, 1, out(r));
+    assert.equal(json.planned, 2, out(r));
+  });
+
+  test('trace：planned REQ 被 tests/ 引用 → exit 0 但输出警告 PLANNED_HAS_TESTS', (t) => {
+    if (!needGit(t)) return;
+    const dir = specFixture(t, {
+      'specs/a.md': `# 需求\n\n${plannedEntry(reqId(405), 'planned(P3)')}\n`,
+    });
+    write(dir, 'tests/a.test.mjs', `// 覆盖 ${reqId(405)}\n`);
+    const r = run(['trace'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.match(r.stdout, /PLANNED_HAS_TESTS/, out(r));
+  });
+
+  test('trace：active 无引用照判 exit 1 且只点名 active；planned 不计入未验证（既有行为回归）', (t) => {
+    if (!needGit(t)) return;
+    const dir = specFixture(t, {
+      'specs/a.md': `# 需求\n\n${reqEntry(reqId(406))}\n${plannedEntry(reqId(407), 'planned(P3)')}\n`,
+    });
+    const r = run(['trace'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, new RegExp(`未被测试引用的需求：[^\\n]*${reqId(406)}`), out(r));
+    assert.doesNotMatch(r.stdout, new RegExp(`未被测试引用的需求：[^\\n]*${reqId(407)}`), out(r));
   });
 });

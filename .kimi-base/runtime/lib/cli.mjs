@@ -781,10 +781,13 @@ async function dispatchCommand(argv) {
       }
       printResult(result.ok ? 'trace 通过' : 'trace 未达门禁（exit 1）', [
         `覆盖率 ${(result.coverage * 100).toFixed(1)}%（verified ${result.verified}/${result.total}；门槛 ${(result.minCoverage * 100).toFixed(0)}%）`,
+        ...(result.planned ? [`规划中需求 ${result.planned} 条（不计入覆盖率）：${result.plannedIds.join(', ')}`] : []),
+        ...(result.plannedWithTests?.length ? [`[PLANNED_HAS_TESTS] 已被测试引用但仍标 planned（实现落地的同 commit 摘除标记）：${result.plannedWithTests.join(', ')}`] : []),
         ...(result.unverified.length ? [`未被测试引用的需求：${result.unverified.join(', ')}`] : []),
         ...(result.dangling.length ? ['悬空引用（代码/测试点名了未声明的 id）：', ...result.dangling.map((item) => `- ${item.id} ← ${item.file}`)] : []),
         ...(result.danglingInDocsCount ? [`文档悬空引用 ${result.danglingInDocsCount} 处（仅报告不拦）：`, ...result.danglingInDocs.map((item) => `- ${item.id} ← ${item.file}`)] : []),
-        result.advice
+        result.advice,
+        `trace 摘要：${JSON.stringify({ ok: result.ok, coverage: result.coverage, minCoverage: result.minCoverage, total: result.total, verified: result.verified, planned: result.planned ?? 0 })}`
       ]);
       return result.ok ? 0 : 1;
     }
