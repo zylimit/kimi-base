@@ -94,7 +94,7 @@ P10 eval+总收尾 ◄── P9 CI/发布面 ◄── P8 反馈分层+采用阶
 | --- | --- | --- |
 | P0 ✅ | TODO #7 真实仓性能校准（38.7 万行/222 模块，发现 discover 三缺陷立项 REQ-068）/ #9 插件 TUI 实装 E2E 全 PASS（F1/F2 限制如实记录）/ #10 执法率 16.7%→50% 且 maxUnenforced=0 转门禁（红锁验证）/ 文档漂移三修 | progress.md 2026-09-04 P0 条目；rules-audit 阈值 0 exit 0；校准表入 LARGE-REPO-GUIDE §5 |
 | P1 ✅ | Product-Spec v3.0.0（REQ-051~068 立项）+ CHANGELOG + ADR-0008~0011 + REQ-067 planned 标记引擎落地（红测先行 7 用例）+ 本表 | spec lint 0 error、trace 100%（51 active，planned 17 单列）、tests 27/27、adr check 0 幽灵 |
-| P2 | CLI 契约注册表（REQ-056）+ discover 真实仓健壮性（REQ-068：SCC 环处理/重复模块/tier 重算/fitness 去重） | cli 契约测试组全绿；38.7 万行真实仓 discover→lint→arch 链路复跑走通 |
+| P2 ✅ | CLI 契约注册表（REQ-056）+ discover 真实仓健壮性（REQ-068：SCC 环处理/重复模块/tier 重算/fitness 去重） | cli-contracts 16/16 + discover 12/12 全绿；selftest 20/20（contractCheck+specifier 仲裁自证）；run-tests 225/225；真实仓 discover→lint(0 overlap)→arch(零新债) 走通；结构化评审 4 轮 6 error 全部修复（变异核查证真闸），verdict ACCEPT 回执 rcpt-20260905074521 |
 | P3 | 强度策略引擎（REQ-051/052）：strength.json schema、resolver（extends 只收紧/floor 只升不降/shadow/decision log）、strength 动词族、policyHash | strength 测试组全绿 + 摘 planned 标记 |
 | P4 | Receipt v2 绑定面（REQ-053）+ fast 贷款账本（REQ-054）+ 可提交证据模式（REQ-055） | receipt/fast/evidence 测试组全绿 |
 | P5 | 评审强化（REQ-057）：authorship 账本接线、静态发现入 review-pack、review 消费策略轴 | review 测试组全绿 |

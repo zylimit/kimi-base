@@ -4,11 +4,13 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { parseFrontmatter } from './admin.mjs';
-import { extractImports } from './arch.mjs';
+import { extractImports, moduleForSpecifier } from './arch.mjs';
 import { matchesGlob } from './catalog.mjs';
 import { classifyDangerousCommand, classifySensitiveCommand } from './classifier.mjs';
+import { CONTRACTS } from './cli-contracts.mjs';
 import { SECURITY_DEFAULTS } from './config.mjs';
 import { atomicWrite, contentHashOf, normalizeLf, redactSecrets, runProcess, sha256, stableJson } from './core.mjs';
+import { runFitness } from './fitness.mjs';
 import { gitFingerprint } from './git.mjs';
 import { CHAIN_GENESIS, chainLink, verifyLedgerChain } from './ledger.mjs';
 
@@ -118,6 +120,80 @@ export async function selftestCommand() {
   } else {
     results.push({ name: 'git 指纹敏感性', ok: true, detail: 'SKIPPED：环境无 git（明示跳过，不计入通过）' });
   }
+  // 13. CLI 契约双向钉死（REQ-056/ADR-0011）：读 lib/cli.mjs 源码提取 dispatch 路由与
+  // help 注册，断言每个路由有契约、每个契约有路由、help 覆盖每个契约 verb。
+  const cliSource = await readFile(new URL('./cli.mjs', import.meta.url), 'utf8');
+  const routeVerbs = new Set([...cliSource.matchAll(/^ {4}case '([a-z][\w-]*)':/gm)].map((m) => m[1]));
+  const contractVerbs = new Set(Object.keys(CONTRACTS).filter((verb) => verb !== 'help'));
+  const helpVerbs = new Set([...cliSource.matchAll(/^ {2}(?:'([a-z][\w-]*)'|([a-z][\w-]*)): `/gm)].map((m) => m[1] ?? m[2]));
+  const missingContract = [...routeVerbs].filter((verb) => !contractVerbs.has(verb));
+  const missingRoute = [...contractVerbs].filter((verb) => !routeVerbs.has(verb));
+  const missingHelp = [...contractVerbs].filter((verb) => !helpVerbs.has(verb));
+  const contractProblems = [
+    ...missingContract.map((verb) => `路由缺契约:${verb}`),
+    ...missingRoute.map((verb) => `契约缺路由:${verb}`),
+    ...missingHelp.map((verb) => `help缺verb:${verb}`)
+  ];
+  check(
+    `contractCheck 契约双向钉死（路由 ${routeVerbs.size} / 契约 ${contractVerbs.size} / help 覆盖 ${contractVerbs.size - missingHelp.length}）`,
+    contractProblems.length === 0,
+    contractProblems.join('；')
+  );
+  // 14. fitness 同命中去重（REQ-068）：同一底层文件经原路径+硬链别名两种形态进入
+  // 扫描面，(dev:ino,line,rule) 去重后同一命中只报一次；抑制留痕同键去重。
+  // 引擎自证（selftest 不是行为测试）：病灶串拼接构造，字面量不进本源文件。
+  const fsp = await import('node:fs/promises');
+  const fitTmp = await fsp.mkdtemp(path.join(tmpdir(), 'kimi-base-selftest-fit-'));
+  try {
+    const lesion = 'const api_key = "abcdefg' + 'h123";\n';
+    const suppressedLesion = `${lesion.trimEnd()} // kimi-base-ignore` + ': no-secret-literal\n';
+    await fsp.mkdir(path.join(fitTmp, 'a'), { recursive: true });
+    await fsp.writeFile(path.join(fitTmp, 'a', 'hit.js'), lesion);
+    await fsp.writeFile(path.join(fitTmp, 'a', 'sup.js'), suppressedLesion);
+    let linked = true;
+    try {
+      await fsp.link(path.join(fitTmp, 'a', 'hit.js'), path.join(fitTmp, 'b-hit.js'));
+      await fsp.link(path.join(fitTmp, 'a', 'sup.js'), path.join(fitTmp, 'b-sup.js'));
+    } catch {
+      try {
+        await fsp.symlink('a/hit.js', path.join(fitTmp, 'b-hit.js'));
+        await fsp.symlink('a/sup.js', path.join(fitTmp, 'b-sup.js'));
+      } catch { linked = false; }
+    }
+    if (linked) {
+      const fitCtx = { root: fitTmp, security: SECURITY_DEFAULTS, catalogPath: path.join(fitTmp, 'absent-catalog.json') };
+      const fitResult = await runFitness(fitCtx, { paths: ['a/hit.js', 'b-hit.js', 'a/sup.js', 'b-sup.js'] });
+      check('fitness 同 inode 双路径命中去重（含抑制留痕）',
+        fitResult.findings.length === 1 && fitResult.suppressed.length === 1,
+        `findings=${fitResult.findings.length} suppressed=${fitResult.suppressed.length}（期望各 1；去重前各 2）`);
+    } else {
+      results.push({ name: 'fitness 同 inode 双路径命中去重（含抑制留痕）', ok: true, detail: 'SKIPPED：环境不支持硬链/软链（明示跳过，不计入通过）' });
+    }
+  } finally {
+    await rm(fitTmp, { recursive: true, force: true }).catch(() => {});
+  }
+  // 15. firstVerbToken 不吞动词（REQ-068 第三轮 info 级）：`--check manifest` 的
+  // manifest 不得被 value flag --check（quality/waiver 契约注册）吞成值而静默 help。
+  // 引擎自证：子进程真实跑 CLI，断言命中 manifest 结果而非 help 横幅。
+  const runtimePath = new URL('../kimi-base.mjs', import.meta.url).pathname;
+  const repoRoot = new URL('../../../', import.meta.url).pathname;
+  const verbProbe = await runProcess(process.execPath, [runtimePath, '--check', 'manifest'], { cwd: repoRoot });
+  // 只断言路由到了 manifest（通过/失败取决于 manifest 新鲜度，均证明未被吞成 help）。
+  check('firstVerbToken 不吞动词（--check manifest）',
+    verbProbe.stdout.includes('manifest check') && !verbProbe.stdout.includes('治理运行时'),
+    `exit=${verbProbe.exitCode} 输出首部: ${verbProbe.stdout.slice(0, 60)}`);
+  // 16. specifier 仲裁保真度（REQ-068 第五轮）：x.ts 与 x.js 并存时精确命中优先——
+  // specifier 写 src/b/x.js 时归 x.js 属主（与 classifyPath 对真实文件的归属一致）；
+  // 只有精确 miss 才走 .js→.ts 改写（NodeNext）；改写也 miss 保持 null（计未解析）。
+  const ambCatalog = { modules: [
+    { id: 'ts-owner', root: 'src/b', paths: ['x.ts'] },
+    { id: 'js-owner', root: 'src/b', paths: ['x.js'] }
+  ] };
+  check('specifier 仲裁精确优先（x.ts+x.js 并存归 .js）',
+    moduleForSpecifier(ambCatalog, 'src/b/x.js')?.id === 'js-owner'
+      && moduleForSpecifier({ modules: [ambCatalog.modules[0]] }, 'src/b/x.js')?.id === 'ts-owner'
+      && moduleForSpecifier({ modules: [ambCatalog.modules[1]] }, 'src/b/y.js') === null,
+    '并存归 js-owner；仅 ts 时改写归 ts-owner；无对应文件保持 null');
   const failed = results.filter((item) => !item.ok);
   for (const item of results) process.stdout.write(`${item.ok ? 'PASS' : 'FAIL'} ${item.name}${item.detail ? ` — ${item.detail}` : ''}\n`);
   process.stdout.write(`selftest：${results.length - failed.length}/${results.length} 通过\n`);

@@ -252,9 +252,15 @@ export async function runProcess(executable, args, options = {}) {
   });
 }
 
-export function parseCliArgs(argv) {
+// REQ-056：valueFlags 声明哪些 flag 消费字符串值（契约表 kind:'value'）。
+// boolean/未知 flag 一律不吞后续裸 token——裸 token 留在 positional 由契约校验归类，
+// 修复"boolean flag 把下一个裸 token 吞成自己的值"导致的静默错跑。
+export function parseCliArgs(argv, { valueFlags } = {}) {
+  const takesValue = valueFlags ?? new Set();
   const positional = [];
   const flags = {};
+  const duplicates = [];
+  const emptyValues = [];
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     if (!token.startsWith('--')) {
@@ -262,15 +268,19 @@ export function parseCliArgs(argv) {
       continue;
     }
     const [rawKey, inline] = token.slice(2).split(/=(.*)/s, 2);
+    if (Object.prototype.hasOwnProperty.call(flags, rawKey) && !duplicates.includes(rawKey)) {
+      duplicates.push(rawKey);
+    }
     if (inline !== undefined) {
       flags[rawKey] = inline;
-    } else if (argv[index + 1] && !argv[index + 1].startsWith('--')) {
+      if (inline === '' && !emptyValues.includes(rawKey)) emptyValues.push(rawKey);
+    } else if (takesValue.has(rawKey) && argv[index + 1] && !argv[index + 1].startsWith('--')) {
       flags[rawKey] = argv[++index];
     } else {
       flags[rawKey] = true;
     }
   }
-  return { positional, flags };
+  return { positional, flags, duplicates, emptyValues };
 }
 
 export function csv(value) {

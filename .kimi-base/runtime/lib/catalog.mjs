@@ -85,7 +85,7 @@ export function matchesGlob(relativePath, pattern) {
   return globRegex(pattern).test(toPosix(relativePath));
 }
 
-function moduleMatches(module, relativePath) {
+export function moduleMatches(module, relativePath) {
   const target = toPosix(relativePath);
   // 模板系模块：paths 直接是仓根 glob。
   if (module.repoRooted) return module.paths.some((pattern) => matchesGlob(target, pattern));

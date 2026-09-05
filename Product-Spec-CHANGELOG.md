@@ -1,5 +1,17 @@
 # Product Spec 变更日志
 
+## v3.0.1（2026-09-04）P2 激活：REQ-056 CLI 契约注册表 / REQ-068 discover 健壮性
+
+### 为什么改
+
+P2 完成，两条 planned 需求按 REQ-067 生命周期机制随实现落地激活（摘除 planned 标记，trace 覆盖率即刻接管看护）。
+
+### 变更
+
+- REQ-056（CLI 契约注册表）摘 planned(P2) 标记：lib/cli-contracts.mjs 单源派生 dispatch/help/flag 校验；重复 flag/空值 flag/boolean 吞 token 三类静默错误转为 exit 1 响亮拒绝；selftest 增 contractCheck 双向钉死（16→17 项）。
+- REQ-068（discover 真实仓健壮性）摘 planned(P2) 标记：root 全图唯一硬不变量 + SCC 凝聚（迭代 Tarjan，needsDecision 留痕）+ 凝聚 DAG 上 tier 重算 + fitness 按底层文件身份（dev:ino→realpath→路径串）去重。38.7 万行真实仓全链路复跑：discover→catalog lint（0 overlap）→arch check --scan（零新债）走通。
+- 版本号 v3.0.0 → v3.0.1。
+
 ## v3.0.0（2026-09-04）v3.0 立项：强度可计算的治理 + 需求生命周期标记
 
 ### 为什么改

@@ -1,7 +1,7 @@
 // lib/fitness.mjs —— fitness 五规则（内置零依赖文本级防线）
 // 抑制：同行注释 kimi-base-ignore: <rule>（留痕）。
 
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { TIER_RANK, loadCatalog } from './catalog.mjs';
 import { degradedError, normalizeRepoPath } from './core.mjs';
@@ -135,7 +135,7 @@ export async function runFitness(ctx, options = {}) {
     scope = 'changed';
   }
   const catalog = await loadCatalog(ctx).catch(() => null);
-  const findings = [];
+  let findings = [];
   const suppressedFindings = [];
   const skipped = [];
   let scanned = 0;
@@ -174,14 +174,44 @@ export async function runFitness(ctx, options = {}) {
       }
     }
   }
+  // 同一底层文件可经两种路径形态进入扫描面（--all = tracked ∪ 未跟踪：原路径 +
+  // 未跟踪软链/硬链别名），字符串 Set 去重挡不住——同一命中必须只报一次。
+  // 底层身份优先 dev:ino（stat 穿透软链、硬链共享 inode），失败退 realpath，再退
+  // 路径串；去重键 = 身份 + (line, ruleId)，保留首次报告。抑制留痕同一身份键去重。
+  const identities = new Map();
+  const identityOf = async (relative) => {
+    if (identities.has(relative)) return identities.get(relative);
+    let identity = relative;
+    try {
+      const info = await stat(path.join(ctx.root, relative));
+      identity = `${info.dev}:${info.ino}`;
+    } catch {
+      identity = await realpath(path.join(ctx.root, relative)).catch(() => relative);
+    }
+    identities.set(relative, identity);
+    return identity;
+  };
+  const dedupeByIdentity = async (items) => {
+    const seen = new Set();
+    const kept = [];
+    for (const item of items) {
+      const key = `${await identityOf(item.path)} ${item.line} ${item.rule}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      kept.push(item);
+    }
+    return kept;
+  };
+  findings = await dedupeByIdentity(findings);
+  const suppressed = await dedupeByIdentity(suppressedFindings);
   const errors = findings.filter((item) => item.severity === 'error');
   const warnings = findings.filter((item) => item.severity === 'warning');
   const status = errors.length > 0 ? 'FAIL' : 'PASS';
   const report = [
-    `fitness：${status}；扫描 ${scanned} 文件（scope=${scope}）；error ${errors.length} / warning ${warnings.length} / 抑制留痕 ${suppressedFindings.length}`,
+    `fitness：${status}；扫描 ${scanned} 文件（scope=${scope}）；error ${errors.length} / warning ${warnings.length} / 抑制留痕 ${suppressed.length}`,
     ...findings.slice(0, 100).map((item) => `- ${item.severity} [${item.rule}] ${item.path}:${item.line} ${item.message}`),
-    ...suppressedFindings.slice(0, 20).map((item) => `- suppressed [${item.rule}] ${item.path}:${item.line}（kimi-base-ignore 留痕）`),
+    ...suppressed.slice(0, 20).map((item) => `- suppressed [${item.rule}] ${item.path}:${item.line}（kimi-base-ignore 留痕）`),
     ...(paths.length > FITNESS_MAX_FILES || findings.length >= FITNESS_MAX_FINDINGS ? ['- note 扫描/发现数量达上限，结果被截断'] : [])
   ].join('\n');
-  return { status, ok: status === 'PASS', scannedFiles: scanned, findings, suppressed: suppressedFindings, skipped: skipped.slice(0, 50), report };
+  return { status, ok: status === 'PASS', scannedFiles: scanned, findings, suppressed, skipped: skipped.slice(0, 50), report };
 }

@@ -2,7 +2,7 @@
 
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { dependencyCycles, loadCatalog } from './catalog.mjs';
+import { dependencyCycles, loadCatalog, moduleMatches } from './catalog.mjs';
 import { HarnessError, atomicWrite, degradedError, nowIso, readJsonFile, sha256, toPosix, usageError } from './core.mjs';
 import { FITNESS_RULES } from './fitness.mjs';
 import { trackedPaths } from './git.mjs';
@@ -51,16 +51,24 @@ export function extractImports(filePath, content) {
   return [...found];
 }
 
-// 模块归属：root 前缀最深者胜（root='.' 的模块不参与实边归属，避免吞掉一切边）。
+// 模块归属：paths 仲裁 + root 前缀最深者胜。只有 paths 枚举（逐文件/子树 glob）
+// 覆盖的模块才算属主——只按 root 前缀会把文件错判给"root 包含但 paths 未枚举"的
+// 模块（discover 凝聚枚举与让位细分的产物，同 root/嵌套 root 时先见者胜=边错归属）。
+// root='.' 模块只豁免裸 **（防吞一切边，与 lint 的 catch-all 禁令同形）；逐文件/
+// 子树枚举的根模块正常参与归属——整体跳过会让根模块的实边静默丢失（无环假绿）。
+// 行为保持：paths 为 ['**'] 的模块（绝大多数 catalog）与旧 root 前缀语义逐文件等价。
 function owningModule(catalog, relativePath) {
   const target = toPosix(relativePath);
   let best = null;
+  let bestDepth = -1;
   for (const module of catalog.modules) {
-    if (module.root === '.' || module.root === '') continue;
-    const root = module.root.replace(/\/$/, '');
-    if (target === root || target.startsWith(`${root}/`)) {
-      if (!best || root.length > best.root.length) best = module;
-    }
+    if (!module.root) continue;
+    const root = module.root === '.' ? '' : module.root.replace(/\/$/, '');
+    if (root === '') {
+      if ((module.paths ?? []).some((pattern) => pattern === '**' || pattern === '**/*')) continue;
+    } else if (target !== root && !target.startsWith(`${root}/`)) continue;
+    if (!moduleMatches(module, target)) continue;
+    if (root.length > bestDepth) { best = module; bestDepth = root.length; }
   }
   return best;
 }
@@ -78,16 +86,58 @@ function resolveRelativeImport(fromFile, specifier, trackedSet) {
   return null;
 }
 
-// 裸 specifier 归属：provides 前缀或 root 路径前缀，最长前缀胜。
-function moduleForSpecifier(catalog, specifier) {
+// 裸 specifier 归属：provides 前缀或 root 路径前缀，最长前缀胜。root 前缀命中须过
+// paths 仲裁（与 owningModule 同语义复用 moduleMatches）——root 包含但 paths 未枚举
+// 的模块不是属主，错挂它会制造幻影环（discover 让位/凝聚枚举产物）；provides 是
+// specifier 空间声明（包名映射），不做 paths 检查。root='.' 只豁免裸 **（同
+// owningModule）。paths=['**'] 模块与旧语义逐 specifier 等价（行为保持）。
+// paths 仲裁按 resolveRelativeImport 同口径做 NodeNext 改写（.js→.ts 族回写 +
+// 扩展名补全 + index 回退）：路径形裸 specifier 对枚举 paths 模块不做改写会一律
+// miss，把真实违例边吞成"未解析"假绿；改写后仍 miss 的计 unresolved（诚实），
+// 绝不因归属不确定而错挂。
+function specifierPathCandidates(specifier) {
+  const candidates = [specifier, ...JS_RESOLUTION_EXTENSIONS.map((extension) => specifier + extension)];
+  const rewritten = specifier.replace(/\.(js|mjs|cjs|jsx)$/, '');
+  if (rewritten !== specifier) for (const extension of JS_RESOLUTION_EXTENSIONS) candidates.push(rewritten + extension);
+  for (const extension of JS_RESOLUTION_EXTENSIONS) candidates.push(`${specifier}/index${extension}`);
+  candidates.push(`${specifier}.py`, `${specifier}/__init__.py`);
+  return candidates;
+}
+
+export function moduleForSpecifier(catalog, specifier) {
+  // 保真度仲裁：精确路径命中（与 provides 命中）必须优先于改写候选——
+  // x.ts 与 x.js 并存时（specifier 形如 src/b/x.js）必须归 x.js 属主，与 classifyPath
+  // 对真实文件的归属一致；只有精确 miss 时才走 NodeNext 改写/扩展名补全/index 回退。
   let best = null;
   let bestLength = -1;
+  const rootOf = (module) => (module.root === '.' ? '' : (module.root ?? '').replace(/\/$/, ''));
+  const consider = (module, length) => {
+    if (length > bestLength) { best = module; bestLength = length; }
+  };
+  // 第一遍：provides（specifier 空间声明）+ 精确 specifier 的 paths 仲裁。
   for (const module of catalog.modules) {
-    const prefixes = [...(module.provides ?? []), ...(module.root !== '.' ? [module.root] : [])];
-    for (const prefix of prefixes) {
+    for (const prefix of module.provides ?? []) {
       if (specifier !== prefix && !specifier.startsWith(`${prefix}/`) && !specifier.startsWith(`${prefix}.`)) continue;
-      if (prefix.length > bestLength) { best = module; bestLength = prefix.length; }
+      consider(module, prefix.length);
     }
+    if (!module.root) continue;
+    const root = rootOf(module);
+    if (root === '') {
+      if ((module.paths ?? []).some((pattern) => pattern === '**' || pattern === '**/*')) continue;
+    } else if (specifier !== root && !specifier.startsWith(`${root}/`) && !specifier.startsWith(`${root}.`)) continue;
+    if (!moduleMatches(module, specifier)) continue;
+    consider(module, root.length);
+  }
+  if (best) return best;
+  // 第二遍：精确全 miss，才按 resolveRelativeImport 同口径的改写候选仲裁。
+  for (const module of catalog.modules) {
+    if (!module.root) continue;
+    const root = rootOf(module);
+    if (root === '') {
+      if ((module.paths ?? []).some((pattern) => pattern === '**' || pattern === '**/*')) continue;
+    } else if (specifier !== root && !specifier.startsWith(`${root}/`) && !specifier.startsWith(`${root}.`)) continue;
+    if (!specifierPathCandidates(specifier).some((candidate) => moduleMatches(module, candidate))) continue;
+    consider(module, root.length);
   }
   return best;
 }

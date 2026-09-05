@@ -1,6 +1,6 @@
 # kimi-base Product Spec
 
-版本：v3.0.0 · 状态：v3.0 重构进行中（v3.0 需求节主体为 planned 标记，随 Phase 逐批激活） · 变更史见 `Product-Spec-CHANGELOG.md`
+版本：v3.0.1 · 状态：v3.0 重构进行中（v3.0 需求节主体为 planned 标记，随 Phase 逐批激活） · 变更史见 `Product-Spec-CHANGELOG.md`
 
 ## 1. 定位
 
@@ -155,7 +155,6 @@
   状态：planned(P4)
   验收：evidence 测试组（committed 模式克隆仓验链通过/日志不入库/local 默认不变）全绿。
 - REQ-056 CLI 契约注册表：当执行任意 verb 时，dispatch、help 与 flag 校验必须从 `lib/cli-contracts.mjs` 单源派生；未知 flag、重复 flag、空值 flag 必须 exit 1 并列出该 verb 合法 flag 集；selftest 必须双向钉死（每个路由有契约、每个契约有路由）；40 个既有 verb 名称与语义必须保持兼容。
-  状态：planned(P2)
   验收：cli 契约测试组（全 verb flag 表锁定/未知 flag 拒/selftest 双向断言）全绿。
 - REQ-057 评审独立性接线：当评审 lens 报告时，引擎必须记录执行者身份并入 authorship 账本；lens 执行者属于该 diff 作者集时 verdict 必须拒出 ACCEPT；无身份数据时必须诚实输出 authorshipEnforced:false；review-pack 必须注入 fitness/arch-check/budget 当前发现供 lens 引用。
   状态：planned(P5)
@@ -190,7 +189,6 @@
 - REQ-067 需求生命周期标记：当需求块内含 planned 状态标记（"状态"冒号后接 planned 与括号包裹的 phase 编号）时，spec lint 必须照常做可判定性检查且标记缺 phase 编号必须报 PLANNED_NO_PHASE（exit 1）；trace 必须把 planned 需求排除出覆盖率分母（零 active 时覆盖率为空真 1）、单独报告 planned 计数；planned 需求被 tests/ 引用必须报 PLANNED_HAS_TESTS 警告。
   验收：tests/spec.test.mjs「需求生命周期标记 planned」用例组全绿（红测先行于实现）。
 - REQ-068 discover 真实仓健壮性：当在含循环 import 的真实仓库执行 `catalog discover` 时，引擎必须做环处理（SCC 凝聚或环标注豁免）且不得生成 paths 完全相同的重复模块；断环后分层必须重算；`fitness --all` 对同一命中必须只报一次。
-  状态：planned(P2)
   验收：38.7 万行真实仓校准复跑：discover→catalog lint→arch check --scan 链路可走通（允许 baseline 固化存量债），fitness 重复命中回归测试全绿。
 
 ## 6. 非功能需求

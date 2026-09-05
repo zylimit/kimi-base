@@ -6,6 +6,7 @@ import { doctorCommand, isSourceRepo, manifestCommand, packCheckCommand } from '
 import { adrCheckRun, archBaselineWrite, archCheckRun, archTrend } from './arch.mjs';
 import { assessBudget } from './budget.mjs';
 import { lintCatalog } from './catalog.mjs';
+import { CONTRACTS, GLOBAL_FLAGS } from './cli-contracts.mjs';
 import { cochangeAnalysis } from './cochange.mjs';
 import { findProjectRoot, loadContext, requireProjectRoot } from './config.mjs';
 import { buildContextPack, impactAnalysis } from './context.mjs';
@@ -111,6 +112,9 @@ const HELP_VERBS = {
   task: `task start --goal "目标" --owned "glob,glob" --risk low|medium|high\n  task status | task complete | task cancel\n  单 active 任务；start 对 ownedPaths 做 SHA-256 基线快照；\n  complete 执行完成门：风险层 required kinds 全部 fresh receipt，缺口 exit 2。`,
   gate: `gate [--risk low|medium|high] [--kind static|unit|integration|build|security|smoke] [--dry-run]\n  风险累积并集：high ⊇ medium ⊇ low。四态 PASS/FAIL/BLOCKED/SKIPPED。\n  缺命令=BLOCKED；空计划=BLOCKED；SKIPPED 仅 fast mode + allowFastSkip + 非 protected。\n  每次执行写 receipt（绑 task/fingerprint/risk/argvHash/证据哈希）并入哈希链账本。`,
   quality: `quality status\n  五性覆盖判定：模块定档 critical/high 的属性需 fresh PASS 认领证据；\n  反证压过佐证；声明未接线即缺口；SKIPPED 不覆盖也不反证。uncovered → exit 2。\n  runtime 类检查（matrix check 声明 "class":"runtime"）的回执带 validUntil 与\n  time-window-<N>h 标签：时间窗内不随树指纹过期，窗口过期即不 fresh。\nquality waiver create --check K --approver X --reason R --expires ISO --compensation C\n  禁词（security/safety/privacy/pii/secret/credential/destructive/隐私/个人信）拒绝；已执行 FAIL 永不可豁免；\n  过期/跨 fingerprint 自动失效。\nquality waiver list  列出全部 waiver 及其有效性。`,
+  waiver: `waiver create --check K --approver X --reason R --expires ISO --compensation C
+waiver list
+  quality waiver 的顶层别名（两种叫法都合法），语义与 quality waiver 完全一致；详见 quality --help。`,
   arch: `arch check [--scan]\n  声明图（环/禁令/分层方向）恒查；--scan 扫描真实 import 边（JS/TS/Py/Go/Java/\n  Kotlin/C#/Rust/Ruby/PHP/Swift）对照声明图。发现违规 exit 1；非 git 仓 = 降级 exit 3（无法测量）。\narch baseline --write [--reason "..."]\n  存量违规固化为 .kimi-base/arch-baseline.json（每条带 reason，进 git 可评审）；\n  新债零容忍；已还清条目标 stale 要求删除。\narch trend --record|--gate\n  漂移指标快照与棘轮门：当前指标对比逐指标历史最优（best-ever），回弹 exit 1；\n  无快照时 gate 通过并注明 baseline:true（先 --record 建立基线）。`,
   adr: `adr check\n  扫描 docs/adr/*.md（或 harness.json adrDir）：活跃 ADR 必须有 Enforced-by: 行，\n  引用必须是真实 check id / fitness 规则，或显式 manual: 前缀；幽灵引用 exit 1。`,
   catalog: `catalog lint [--paths a,b]\n  每条 git tracked 路径必须归属某 module / globalPaths / 带 reason 的 ignored；\n  拒绝 catch-all（裸 **）；OVERLAP/DANGLING_DEP/UNJUSTIFIED_TIER 全拦（exit 1）。\n  非 git 仓且无 --paths = 降级 exit 3。\ncatalog discover [--write] [--depth 2]\n  从仓库事实推导 catalog 草案：源码目录分组（≥2 文件成组，顶层目录兜底）、\n  真实 import 边推导 dependsOn、tier-N 位置分层（tier-1 最内层=无依赖基础层）、\n  构建清单命令检测（package.json/pyproject/go.mod/Cargo/Makefile）、\n  生产源码属性信号提案（封顶 high，≥2 文件或 ≥2 词才成提案，测试夹具不触发）。\n  猜不了的字段（属性档位/forbiddenDependencies/层名/矩阵接线）进 needsDecision，绝不替人决定。\n  --write：已有 catalog 写 module-catalog.draft.json，否则写 module-catalog.json。\n  无可提案（非 git/空树/无目录成组）→ exit 3。init-modules 是废弃别名，转发本命令。`,
@@ -150,59 +154,56 @@ function printHelp(verb) {
   process.stdout.write(`${HELP_GLOBAL}\n`);
 }
 
-// 严格 flag 校验（退出码契约 v2：未知 flag = 用法错误 exit 1）。
-// parseCliArgs 曾静默吞掉任何 --flag，文档漂移由此隐身；每个动词在此登记合法 flag。
-const GLOBAL_FLAGS = ['project', 'help'];
-const KNOWN_FLAGS = {
-  install: ['dry-run', 'target', 'hooks'],
-  upgrade: ['dry-run', 'target', 'hooks'],
-  uninstall: ['dry-run', 'target'],
-  manifest: ['write', 'check'],
-  doctor: ['target'],
-  'pack-check': [],
-  task: ['goal', 'owned', 'risk'],
-  gate: ['risk', 'kind', 'dry-run'],
-  quality: ['check', 'approver', 'reason', 'expires', 'compensation'],
-  waiver: ['check', 'approver', 'reason', 'expires', 'compensation'],
-  arch: ['scan', 'write', 'reason', 'record', 'gate'],
-  adr: [],
-  catalog: ['paths', 'write', 'depth'],
-  fitness: ['path', 'staged', 'all'],
-  impact: ['git', 'risk'],
-  context: ['budget', 'focus'],
-  receipt: [],
-  review: ['base', 'ad-hoc', 'reviewer', 'notes'],
-  fast: [],
-  risk: [],
-  'gate-audit': [],
-  retention: ['dry-run'],
-  hook: [],
-  'init-modules': ['write'],
-  recap: ['budget'],
-  invariants: [],
-  archive: ['apply', 'keep-done', 'keep-notes'],
-  'sync-check': ['staged', 'paths'],
-  spec: ['paths', 'all', 'budget'],
-  trace: [],
-  'rules-audit': ['files'],
-  'skills-lint': [],
-  'agents-lint': [],
-  dod: [],
-  selftest: [],
-  cochange: ['limit', 'min-pairs', 'ratio'],
-  budget: ['staged', 'baseline'],
-  fleet: ['fleet', 'deep', 'budget'],
-  release: []
-};
+// 严格 flag 校验（退出码契约 v2：用法错误 exit 1）——单源派生自 cli-contracts.mjs（REQ-056）。
+// 校验顺序：未知 flag → 重复 flag → 空值 flag → conflicts 互斥 → 位置参数上下界；
+// 全部先于项目根解析（用法错误不该被 PROJECT_ROOT_NOT_FOUND 遮蔽）。
 
-function assertKnownFlags(verb, flags) {
-  const known = KNOWN_FLAGS[verb];
-  if (!known) return; // 未知动词走 default 分支报"未知动词"
-  const allowed = new Set([...known, ...GLOBAL_FLAGS]);
+// 全部契约里的 value flag 名（含全局）：先扫一遍定位 verb，再按该 verb 的契约精确解析。
+const VALUE_FLAG_NAMES_GLOBAL = new Set(Object.entries(GLOBAL_FLAGS).filter(([, spec]) => spec.kind === 'value').map(([name]) => name));
+const VALUE_FLAG_NAMES = new Set(VALUE_FLAG_NAMES_GLOBAL);
+for (const contract of Object.values(CONTRACTS)) {
+  for (const [name, spec] of Object.entries(contract.flags)) if (spec.kind === 'value') VALUE_FLAG_NAMES.add(name);
+}
+
+function firstVerbToken(argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token.startsWith('--')) return token;
+    const [key, inline] = token.slice(2).split(/=(.*)/s, 2);
+    // 跳过 value flag 的值——但值恰好是已注册动词时不跳（--check manifest：
+    // check 在 quality/waiver 契约里是 value flag，会把 manifest 吞成值、静默 help）。
+    if (inline === undefined && VALUE_FLAG_NAMES.has(key) && !CONTRACTS[argv[index + 1]]) index += 1;
+  }
+  return undefined;
+}
+
+function assertContract(verb, args, flags, duplicates, emptyValues) {
+  const contract = CONTRACTS[verb];
+  if (!contract) return; // 未知动词走 default 分支报"未知动词"
+  const allowed = new Set([...Object.keys(contract.flags), ...Object.keys(GLOBAL_FLAGS)]);
   for (const key of Object.keys(flags)) {
     if (!allowed.has(key)) {
       throw usageError(`未知 flag：--${key}；动词 ${verb} 支持的 flag：${[...allowed].map((item) => `--${item}`).join(' ')}`);
     }
+  }
+  for (const name of duplicates) {
+    throw usageError(`动词 ${verb} 的 flag --${name} 重复出现（重复 flag 不允许，请只传一次）`);
+  }
+  for (const name of emptyValues) {
+    throw usageError(`动词 ${verb} 的 flag --${name} 空值（--${name}= 不允许空值）`);
+  }
+  for (const group of contract.conflicts ?? []) {
+    const present = group.filter((name) => flags[name] !== undefined && flags[name] !== false);
+    if (present.length > 1) {
+      throw usageError(`动词 ${verb} 的 flag ${present.map((name) => `--${name}`).join(' 与 ')} 互斥`);
+    }
+  }
+  const { min, max } = contract.positional;
+  if (args.length < min) {
+    throw usageError(`动词 ${verb} 缺少位置参数（至少 ${min} 个，实得 ${args.length} 个）；用法：${contract.usage}`);
+  }
+  if (args.length > max) {
+    throw usageError(`动词 ${verb} 位置参数越界：${args.slice(max).map((token) => `「${token}」`).join(' ')} 多余（最多 ${max} 个）；用法：${contract.usage}`);
   }
 }
 
@@ -226,8 +227,11 @@ async function readStdinJson(what) {
 }
 
 async function dispatchCommand(argv) {
-  const { positional, flags } = parseCliArgs(argv);
-  const [verb, sub, ...rest] = positional;
+  const verb = firstVerbToken(argv);
+  const contract = verb ? CONTRACTS[verb] : undefined;
+  const valueFlags = new Set([...VALUE_FLAG_NAMES_GLOBAL, ...Object.entries(contract?.flags ?? {}).filter(([, spec]) => spec.kind === 'value').map(([name]) => name)]);
+  const { positional, flags, duplicates, emptyValues } = parseCliArgs(argv, { valueFlags });
+  const [, sub, ...rest] = positional;
   if (!verb || verb === 'help' || flags.help === true && !verb) {
     printHelp(null);
     return 0;
@@ -236,7 +240,8 @@ async function dispatchCommand(argv) {
     printHelp(verb);
     return 0;
   }
-  assertKnownFlags(verb, flags);
+  // 用法校验必须先于项目根解析（REQ-056）：未知/重复/空值 flag、互斥、位置参数越界。
+  assertContract(verb, positional.slice(1), flags, duplicates, emptyValues);
   const projectStart = flags.project ? path.resolve(String(flags.project)) : process.cwd();
   const needProject = async () => loadContext(await requireProjectRoot(projectStart));
 
@@ -281,7 +286,7 @@ async function dispatchCommand(argv) {
       return 0;
     }
     case 'manifest': {
-      if (flags.write && flags.check) throw usageError('manifest --write 与 --check 互斥');
+      // --write 与 --check 互斥由契约 conflicts 集中校验（assertContract 已先行）。
       const mode = flags.write ? 'write' : 'check';
       // 源仓（kimi.plugin.json+.kimi-base/runtime+.kimi-code）优先走源仓模式；
       // 源仓自托管时根上也有 harness.json，不能让 findProjectRoot 抢成已安装模式。
