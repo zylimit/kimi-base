@@ -96,7 +96,8 @@ P10 eval+总收尾 ◄── P9 CI/发布面 ◄── P8 反馈分层+采用阶
 | P1 ✅ | Product-Spec v3.0.0（REQ-051~068 立项）+ CHANGELOG + ADR-0008~0011 + REQ-067 planned 标记引擎落地（红测先行 7 用例）+ 本表 | spec lint 0 error、trace 100%（51 active，planned 17 单列）、tests 27/27、adr check 0 幽灵 |
 | P2 ✅ | CLI 契约注册表（REQ-056）+ discover 真实仓健壮性（REQ-068：SCC 环处理/重复模块/tier 重算/fitness 去重） | cli-contracts 16/16 + discover 12/12 全绿；selftest 20/20（contractCheck+specifier 仲裁自证）；run-tests 225/225；真实仓 discover→lint(0 overlap)→arch(零新债) 走通；结构化评审 4 轮 6 error 全部修复（变异核查证真闸），verdict ACCEPT 回执 rcpt-20260905074521 |
 | P3 | 强度策略引擎（REQ-051/052）：strength.json schema、resolver（extends 只收紧/floor 只升不降/shadow/decision log）、strength 动词族、policyHash | strength 测试组全绿 + 摘 planned 标记 |
-| P4 | Receipt v2 绑定面（REQ-053）+ fast 贷款账本（REQ-054）+ 可提交证据模式（REQ-055） | receipt/fast/evidence 测试组全绿 |
+| P4 ✅ | Receipt v2 绑定面（REQ-053）+ fast 贷款账本（REQ-054）+ 可提交证据模式（REQ-055） | receipt-v2 26/26；run-tests 285/285；评审五轮 10 error 全修复；verdict ACCEPT rcpt-20260907183718 |
+| P11（插队，用户 2026-09-08 指令） | 沟通桥梁层（REQ-069~075，ADR-0012，设计 docs/COMMUNICATION-LAYER.md）：认知标注四态+spec lint 检查 / 业务含义过链（派单第七字段+回流通道）/ 交互深度四档 / psb 方法层重写 / 记忆依据链+纠正三段式 / 阶段专业化 / skill 工艺与去重 | 各 REQ 验收行；真实情境前后对比检验 |
 | P5 | 评审强化（REQ-057）：authorship 账本接线、静态发现入 review-pack、review 消费策略轴 | review 测试组全绿 |
 | P6 | feedback 引擎化（REQ-058）：record/scan/propose、聚类毕业、人确认落地、载荷纳入 | feedback 测试组全绿 |
 | P7 | 宪法瘦身（REQ-059：AGENTS.md 地图化 ≤6000 字节）+ 修复指令体（REQ-060）+ quarantine 原语（REQ-061） | rules-audit 阈值保持 0；gate/dod nextStep 100% |

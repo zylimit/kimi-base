@@ -45,6 +45,7 @@
 - 2026-09-04（v3.0 立项）三仓逐行对标（dsh/cc/codex）+ 业界调研后用户拍板 v3.0 三方向：规划+逐 Phase 推进；档化模型=强度策略引擎（借鉴 codex v5 Assurance 改良：四档×12 封闭轴、extends 只收紧、floor 只升不降、policyHash 绑证据、shadow 迁移、decision log）；feedback 四层进化引擎化。否决：简化档化（无 floor 无 policyHash）、OPA/Rego（零依赖铁律）、多模型审查（单宿主）、sh/ps1 双写（Node 单实现）。
 - 2026-09-04（v3.0 P1）需求生命周期标记 planned：规格先行与 trace 100% 覆盖的缝合机制——planned 不计入覆盖率分母但仍受全部可判定性 lint，实现落地同 commit 摘标记由 PLANNED_HAS_TESTS 警告看护。否决：规格分批立项（spec 永远描述过去）、空测试文件占位（trace 只数引用会谎报绿）、planned 跳过 lint（烂需求庇护所）。块判定在下一 REQ id 处截断，防跨条目标记渗漏。
 - 2026-09-04（v3.0 P1）trace 输出末行增机器可读投影 `trace 摘要：{...}`（承"操作统计 JSON"先例）：行为测试需要 JSON 字段锚点，且 v3 方向是全动词机器可读投影。
+- 2026-09-08（P11 立项）用户指令把框架定位从"工程治理"扩展为"人与 AI 共同理解问题、形成判断、完成交付的沟通桥梁"——软层与工程面同等强大。软层审计发现七大断点（认知无标注/业务含义不过链/交互深度一刀切/迭代不采动机/界面阶段缺失/记忆无依据链/无反例回流），全文取证在 docs/COMMUNICATION-LAYER.md，决策在 ADR-0012。否决：全套 SDD 流水线用于小改动（review overload 实证）、BMAD 角色剧场（无对照证据）、认知标注靠模型自觉（knowing-but-not-showing 实证必须模板强制）。认知标签定为四态 `[确认]/[推断]/[建议]/[未知]`（不用"待定"——撞 spec lint 占位符词表）。
 
 ## TODO
 
@@ -53,7 +54,7 @@
 
 ## In Progress
 
-- [v3.0] 重构进行中（P0/P1/P2/P3 已完成；P4 Receipt v2+贷款账本+可提交证据已落地待提交；下一步 P5）。计划锚点：DEV-PLAN.md v3.0 Phase 表；会话恢复先跑 `recap` 与 `invariants`。
+- [v3.0] 重构进行中（P0-P4 已完成并提交；P11 沟通桥梁层立项完成，正在实施：REQ-069~075）。计划锚点：DEV-PLAN.md v3.0 Phase 表；会话恢复先跑 `recap` 与 `invariants`。
 
 ## Done
 
