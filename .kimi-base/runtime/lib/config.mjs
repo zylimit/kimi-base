@@ -74,7 +74,9 @@ function validateHarnessConfig(config) {
     // P4：需求可判定性/追溯 与 宪法执法率审计
     'spec', 'rulesAudit',
     // P6：变更预算（budget 动词的上限来源；全可选正整数）
-    'budget'
+    'budget',
+    // REQ-055：证据可见性模式（evidence.mode: local|committed，默认 local）
+    'evidence'
   ]), 'harness.json');
   if (config.version !== 1) throw new HarnessError('harness.json 的 version 必须等于 1', 'CONFIG_INVALID');
   for (const field of ['catalogFile', 'matrixFile', 'adrDir']) {
@@ -199,6 +201,17 @@ function validateHarnessConfig(config) {
     if (config.feedback.signalKeywords !== undefined) assertStringArray(config.feedback.signalKeywords, 'feedback.signalKeywords', { allowEmpty: false });
   }
   validateServices(config.services);
+  // REQ-055/ADR-0009：证据可见性模式。严格校验：非法 mode 配置期报错并点名非法值。
+  if (config.evidence !== undefined) {
+    assertPlainObject(config.evidence, 'evidence');
+    assertKnownFields(config.evidence, new Set(['mode']), 'evidence');
+    if (config.evidence.mode !== undefined && !['local', 'committed'].includes(config.evidence.mode)) {
+      throw new HarnessError(
+        `evidence.mode 非法：${JSON.stringify(config.evidence.mode)}（合法：local | committed；local=证据本地不入库，committed=账本与回执可提交、证据日志本体永不入库）`,
+        'CONFIG_INVALID'
+      );
+    }
+  }
   return config;
 }
 
@@ -282,6 +295,8 @@ export async function loadContext(projectRoot) {
     // 变更预算上限（budget 动词）；空对象 = 未配置（budget 降级 exit 3，绝不假绿）。
     budget: config.budget ?? {},
     riskChecks: config.quality?.riskChecks ?? null,
+    // REQ-055：证据可见性模式（ledger.mjs stateGitignoreContent / ensureStateGitignore 消费）。
+    evidenceMode: config.evidence?.mode ?? 'local',
     // runtime 类证据（matrix check "class":"runtime"）的默认时间窗；检查级 runtimeValidityHours 优先。
     runtimeValidityHours: config.quality?.runtimeValidityHours ?? 24,
     services: config.services ?? {}

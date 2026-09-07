@@ -6,13 +6,15 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import process from 'node:process';
 import { adrCheckRun, archCheckRun } from './arch.mjs';
+import { bindingSurfaces } from './bindings.mjs';
 import { lintCatalog } from './catalog.mjs';
-import { TOOL_VERSION, blockedError, boundedText, contentHashOf, isPathInside, nowIso, runProcess, sha256, stableJson } from './core.mjs';
+import { TOOL_VERSION, blockedError, boundedTail, boundedText, contentHashOf, isPathInside, nowIso, runProcess, sha256, stableJson } from './core.mjs';
 import { fastModeStatus } from './fast.mjs';
 import { runFitness } from './fitness.mjs';
-import { gitFingerprint, requireGit } from './git.mjs';
-import { appendLedgerRecord, writeEvidence, writeReceiptFile } from './ledger.mjs';
+import { git, gitFingerprint, requireGit } from './git.mjs';
+import { appendLedgerRecord, ensureStateGitignore, writeEvidence, writeReceiptFile } from './ledger.mjs';
 import { isProtectedCheck, loadMatrix, requiredPlan, topoOrderChecks } from './matrix.mjs';
+import { STATE_DIR } from './paths.mjs';
 import { stateFile, withFileLock } from './state.mjs';
 import { getActiveTask } from './tasks.mjs';
 
@@ -76,6 +78,10 @@ async function executeCheck(ctx, check, planContext, dependencyResults, fast) {
     risk: planContext.risk,
     fingerprint: planContext.fingerprint,
     baseCommit: planContext.baseCommit,
+    // Receipt v2 绑定面（REQ-053/ADR-0009）：策略/引擎/架构图三面，无配置显式 null。
+    policyHash: planContext.bindings.policyHash,
+    engineHash: planContext.bindings.engineHash,
+    catalogHash: planContext.bindings.catalogHash,
     argvHash: invocation?.argvHash ?? null,
     argvDisplay: invocation?.display ?? null,
     cwd: check.cwd ?? '.',
@@ -140,6 +146,10 @@ async function executeCheck(ctx, check, planContext, dependencyResults, fast) {
   if (rawEvidence.length > 0) {
     if (rawEvidence.length > 4000) {
       evidenceMeta = await writeEvidence(ctx, check.id, rawEvidence);
+      // REQ-055/D3/E3：外部 .log 永不入库（脱敏边界）——回执另携内联真实尾部（boundedTail
+      // 先脱敏再截取，保尾不保头：尾部才是 decision-relevant 判定行），clone/换机后无需
+      // 外部日志即可验链。
+      evidenceMeta.evidenceTail = boundedTail(rawEvidence, 2000).trim() || '（无输出）';
     } else {
       evidenceMeta.evidenceSha256 = sha256(rawEvidence);
       evidenceMeta.evidenceBytes = Buffer.byteLength(rawEvidence, 'utf8');
@@ -159,6 +169,25 @@ async function executeCheck(ctx, check, planContext, dependencyResults, fast) {
   const complete = { ...receipt, contentHash: contentHashOf(receipt) };
   await appendLedgerRecord(ctx, complete);
   await writeReceiptFile(ctx, complete);
+  // REQ-054/ADR-0009 贷款账本化：fast 窗口内每条被跳检查记 kind=deferred 债务条目入哈希链。
+  // 关窗/过期/删 fast-mode.json 均不清债；唯一偿还 = 窗口外同检查 fresh PASS（risk 报 FAST_MODE_DEBT）。
+  // protected 与已执行 FAIL 走不到 SKIPPED 分支，永不产 DEFERRED。
+  if (complete.status === 'SKIPPED' && complete.fastWindow) {
+    const debt = {
+      version: 1,
+      kind: 'deferred',
+      id: `debt-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${randomBytes(4).toString('hex')}`,
+      taskId: complete.taskId,
+      checkId: complete.checkId,
+      checkKind: complete.checkKind,
+      risk: complete.risk,
+      windowId: complete.fastWindow,
+      fingerprint: complete.fingerprint,
+      reason: complete.reason,
+      createdAt: nowIso()
+    };
+    await appendLedgerRecord(ctx, { ...debt, contentHash: contentHashOf(debt) });
+  }
   return complete;
 }
 
@@ -199,7 +228,23 @@ export async function runGate(ctx, options = {}) {
   if (ordered.length === 0 && missingKinds.length === 0) {
     throw blockedError('验证计划为空：没有任何检查被选中；空计划不是绿灯', 'EMPTY_PLAN');
   }
-  const planContext = { task, risk, fingerprint: fingerprint.fingerprint, baseCommit: fingerprint.baseCommit };
+  // Receipt v2 绑定面（REQ-053）：一次解析，全批回执共用；无配置的面显式 null。
+  const bindings = await bindingSurfaces(ctx);
+  // REQ-055：state/.gitignore 与证据模式对齐（committed 放行账本/回执，证据日志永不入库）。
+  await ensureStateGitignore(ctx);
+  if (ctx.evidenceMode === 'committed') {
+    // D4：根 .gitignore 若排除 .kimi-base/state/，嵌套 state/.gitignore 的例外规则捞不回
+    //（git 规则：父目录被排除即不下降）——gate 前探测，响亮阻断并给可操作修法，
+    // 而不是让 git add 裸报 GIT_FAILED。
+    const probe = await git(ctx, ['check-ignore', '-q', '--', STATE_DIR], { allowFailure: true });
+    if (probe.status === 'PASS' && probe.exitCode === 0) {
+      throw blockedError(
+        `committed 证据模式与根 .gitignore 冲突：根 .gitignore 排除了 ${STATE_DIR}/（嵌套 state/.gitignore 捞不回被排除的父目录），回执与账本无法入库。修法：从根 .gitignore 删除/移除该排除行，或为 ${STATE_DIR}/ 设例外规则（! 前缀 unignore），或改回 evidence.mode: "local"`,
+        'EVIDENCE_GITIGNORE_CONFLICT'
+      );
+    }
+  }
+  const planContext = { task, risk, fingerprint: fingerprint.fingerprint, baseCommit: fingerprint.baseCommit, bindings };
   const fast = await fastModeStatus(ctx);
   const results = new Map();
   for (const kind of missingKinds) {
@@ -208,6 +253,7 @@ export async function runGate(ctx, options = {}) {
       id: `rcpt-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${randomBytes(4).toString('hex')}`,
       taskId: task?.id ?? null, checkId: `${kind}:__missing__`, checkKind: kind, risk,
       fingerprint: fingerprint.fingerprint, baseCommit: fingerprint.baseCommit,
+      policyHash: bindings.policyHash, engineHash: bindings.engineHash, catalogHash: bindings.catalogHash,
       argvHash: null, argvDisplay: null, cwd: '.', tool: TOOL_VERSION, toolVersion: 'unavailable',
       fastWindow: null, status: 'BLOCKED', exitCode: null, durationMs: 0,
       reason: `kind ${kind} 在 verification-matrix 中没有任何检查命令`, summary: `kind ${kind} 无命令配置`,
@@ -219,6 +265,12 @@ export async function runGate(ctx, options = {}) {
   }
   for (const check of ordered) {
     results.set(check.id, await executeCheck(ctx, check, planContext, results, fast));
+  }
+  // REQ-055 committed 模式：把未忽略的 state 证据（账本/回执/.gitignore）纳入 git index，
+  // 使 git status/ls-files 可见、随用户提交入库（git add 尊重 ignore 规则——证据日志本体
+  // 与其余运行态物理上进不了 index）。不自动提交：提交史是用户的。
+  if (ctx.evidenceMode === 'committed') {
+    await git(ctx, ['add', '--', STATE_DIR]);
   }
   const receipts = [...results.values()];
   const counts = { PASS: 0, FAIL: 0, BLOCKED: 0, SKIPPED: 0 };

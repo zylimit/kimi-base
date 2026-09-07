@@ -1,6 +1,6 @@
 # kimi-base Product Spec
 
-版本：v3.0.2 · 状态：v3.0 重构进行中（v3.0 需求节主体为 planned 标记，随 Phase 逐批激活） · 变更史见 `Product-Spec-CHANGELOG.md`
+版本：v3.0.3 · 状态：v3.0 重构进行中（v3.0 需求节主体为 planned 标记，随 Phase 逐批激活） · 变更史见 `Product-Spec-CHANGELOG.md`
 
 ## 1. 定位
 
@@ -144,13 +144,10 @@
 - REQ-052 strength 动词族：当执行 `strength list/status/set/explain` 时，引擎必须输出当前生效档与逐轴生效值；explain 必须给出每个轴的最终值来源（内置档/extends/floor 类别）；每次解析必须写有界 decision log（policyRevision/inputDigest/reasons）。
   验收：strength 测试组（explain 逐轴来源/decision log 字段齐备且有界）全绿。
 - REQ-053 Receipt v2 绑定面：当写 gate/评审回执时，引擎必须在 diffHash 之外增绑 policyHash、engineHash（runtime 树 LF 归一化哈希，排除运行态路径）与 catalogHash；策略收紧、引擎变化或 catalog 变化后 `receipt verify` 必须 exit 4（stale）且链完好不判篡改。
-  状态：planned(P4)
   验收：receipt 测试组（改策略/改引擎字节/改 catalog 三类 stale 各 exit 4；链完好 exit 不判 2）全绿。
 - REQ-054 fast 证据贷款账本：当 fast 窗口内跳过检查时，引擎必须把每条被跳检查记 DEFERRED 债务条目入哈希链账本；关窗、窗口过期、删除 fast 状态文件必须不清债；唯一偿还路径必须是窗口外同检查 fresh PASS；protected 检查与已执行 FAIL 必须永不进入可延期集；`risk` 必须报 FAST_MODE_DEBT 直至偿清。
-  状态：planned(P4)
   验收：fast 测试组（借账入链/关窗债在/删状态文件债在/fresh PASS 偿还/protected 拒延期）全绿。
 - REQ-055 可提交证据模式：当 harness.json 配置 `evidence.mode: "committed"` 时，回执与账本文件必须纳入 git 跟踪且证据日志本体永不入库（回执只记其 sha256）；CI 或换机后 `receipt verify` 必须能直接验链 exit 0；默认必须保持 local 模式零负担。
-  状态：planned(P4)
   验收：evidence 测试组（committed 模式克隆仓验链通过/日志不入库/local 默认不变）全绿。
 - REQ-056 CLI 契约注册表：当执行任意 verb 时，dispatch、help 与 flag 校验必须从 `lib/cli-contracts.mjs` 单源派生；未知 flag、重复 flag、空值 flag 必须 exit 1 并列出该 verb 合法 flag 集；selftest 必须双向钉死（每个路由有契约、每个契约有路由）；40 个既有 verb 名称与语义必须保持兼容。
   验收：cli 契约测试组（全 verb flag 表锁定/未知 flag 拒/selftest 双向断言）全绿。

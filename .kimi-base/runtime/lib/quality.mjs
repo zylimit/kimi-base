@@ -6,7 +6,7 @@ import { GOVERNED_TIERS, PROTECTED_ATTRIBUTES, TIER_RANK, analyzeImpact, loadCat
 import { HarnessError, blockedError, contentHashOf, nowIso, usageError } from './core.mjs';
 import { fastModeStatus } from './fast.mjs';
 import { NON_GIT_FINGERPRINT, gitFingerprint, requireGit } from './git.mjs';
-import { latestReceipts, readLedgerEntries, verifyLedgerChain } from './ledger.mjs';
+import { latestReceipts, verifyLedgerHistory } from './ledger.mjs';
 import { isProtectedCheck, loadMatrix, requiredPlan } from './matrix.mjs';
 import { WAIVERS_FILE } from './paths.mjs';
 import { readState, updateState } from './state.mjs';
@@ -134,8 +134,7 @@ export async function attributeCoverage(ctx, options = {}) {
   const fast = await fastModeStatus(ctx, now);
   const receiptsMap = await latestReceipts(ctx);
   const waivers = await readWaivers(ctx);
-  const ledger = await readLedgerEntries(ctx);
-  const chain = verifyLedgerChain(ledger.entries, { archives: ledger.archives });
+  const chain = await verifyLedgerHistory(ctx);
   const results = [];
   const deferred = [];
   for (const [attribute, info] of [...governed.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
@@ -207,8 +206,7 @@ export async function completionGate(ctx, task, options = {}) {
   await requireGit(ctx, 'task complete');
   const matrix = await loadMatrix(ctx);
   const fingerprint = await gitFingerprint(ctx);
-  const ledger = await readLedgerEntries(ctx);
-  const chain = verifyLedgerChain(ledger.entries, { archives: ledger.archives });
+  const chain = await verifyLedgerHistory(ctx);
   const plan = requiredPlan(ctx, matrix, task.risk);
   const receiptsMap = await latestReceipts(ctx);
   const waivers = await readWaivers(ctx);

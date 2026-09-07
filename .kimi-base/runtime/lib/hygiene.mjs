@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { readArchBaseline } from './arch.mjs';
 import { PRE_BASH_RULE_IDS } from './classifier.mjs';
 import { boundedText, nowIso, runProcess, toPosix } from './core.mjs';
-import { fastModeStatus } from './fast.mjs';
+import { fastDebtOf, fastModeStatus } from './fast.mjs';
 import { changedPaths } from './git.mjs';
-import { latestReceipts, readLedgerEntries, verifyLedgerChain } from './ledger.mjs';
+import { latestReceipts, readLedgerEntries, readLedgerHead, reconcileLedgerHead, verifyLedgerHistory } from './ledger.mjs';
 import { REVIEW_BACKLOG_FILE } from './paths.mjs';
 import { lockOwnerAlive, quarantineEvents, readState, stateFile } from './state.mjs';
 import { getActiveTask } from './tasks.mjs';
@@ -22,8 +22,13 @@ export async function riskScan(ctx, now = Date.now()) {
     if (ageHours > 72) push('medium', 'stale-task', `active 任务 ${task.id} 已存在 ${Math.round(ageHours)} 小时；请完成、取消或重切`);
   }
   const ledger = await readLedgerEntries(ctx);
-  const chain = verifyLedgerChain(ledger.entries, { archives: ledger.archives });
-  if (!chain.intact) push('high', 'ledger-chain-broken', `证据账本哈希链断裂于第 ${chain.brokenAt + 1} 条：${chain.reason}`);
+  // E2：全史鉴权（含归档段与 anchor 的 count/链尾对账）——归档被剔除条目/伪造归档混入
+  // 都判断链；债务判定只信断点之前的可信前缀（伪造归档里的假偿还不得清债）。
+  const history = await verifyLedgerHistory(ctx);
+  if (!history.intact) push('high', 'ledger-chain-broken', `证据账本哈希链校验失败：${history.reason}`);
+  // F2：head 锚对账——链是前缀可截断的（删尾行后剩余链合法），锚记链尾/条目数是长度事实源。
+  const headCheck = reconcileLedgerHead(history, await readLedgerHead(ctx));
+  if (!headCheck.ok) push('high', 'ledger-head-mismatch', `账本 ${headCheck.reason}`);
   // 同一检查连续 FAIL（fail streak）。
   const byCheck = new Map();
   for (const entry of ledger.entries) {
@@ -39,6 +44,21 @@ export async function riskScan(ctx, now = Date.now()) {
   }
   const fast = await fastModeStatus(ctx, now);
   if (fast.expired) push('medium', 'fast-mode-expired', 'Fast Mode 已过期但未显式关闭；旧 SKIPPED 回执不再算数');
+  // REQ-054/ADR-0009：fast 证据贷款——未偿还的 DEFERRED 债务以账本为唯一事实源，
+  // 关窗/过期/删 fast-mode.json 均不清债；唯一偿还 = 窗口外同检查 fresh PASS。
+  // D2+E2：债务视图跨归档段存活且只吃鉴权后的可信前缀——轮转归档与伪造归档都不是免债路径。
+  let fastDebt = fastDebtOf(history.trusted);
+  // F2：尾部截断后可信前缀丢了尾行债——锚对账失败时用锚的债务快照保守并集兜底
+  //（截断 ≠ 免债：篡改告警与债务并存）。链完好且锚一致时以账本为准，不看快照。
+  if (!headCheck.ok && headCheck.head?.fastDebt?.length) {
+    const known = new Set(fastDebt.map((debt) => debt.checkId));
+    for (const debt of headCheck.head.fastDebt) {
+      if (!known.has(debt.checkId)) fastDebt = [...fastDebt, { ...debt, fromHeadAnchor: true }];
+    }
+  }
+  if (fastDebt.length) {
+    push('high', 'FAST_MODE_DEBT', `fast 借账未还 ${fastDebt.length} 笔：${fastDebt.map((entry) => `${entry.checkId}（窗口 ${entry.windowId ?? '?'}）`).join('、')}；唯一偿还路径 = fast off 后重跑完整 gate（窗口外同检查 fresh PASS）`);
+  }
   const strikes = await readState(ctx, 'stop-strikes.json', { version: 1, key: null, count: 0 });
   if ((strikes.count ?? 0) >= 2) push('medium', 'stop-strikes', `Stop 门已连拦 ${strikes.count} 次同一状态；到 ${ctx.hooks.stopFuseLimit} 次将保险丝放行并要求人工复核`);
   for (const event of (await quarantineEvents(ctx)).slice(-5)) {

@@ -1,4 +1,13 @@
 # 运行态目录：由 kimi-base 引擎在运行时创建
-# 安装器会在本目录写入 .gitignore，内容为两行（忽略全部运行态，但保留 .gitignore 自身）：
+# 安装器会在本目录写入 .gitignore，内容随 harness.json 的 evidence.mode 区分：
+# local（默认）两行（忽略全部运行态，但保留 .gitignore 自身）：
 # *
 # !.gitignore
+# committed 额外放行账本、head 锚与回执（证据日志 evidence/*.log 与其余运行态仍永不入库）：
+# *
+# !.gitignore
+# !ledger.jsonl
+# !ledger-head.json
+# !ledger-archive-*.jsonl
+# !receipts/
+# !receipts/**

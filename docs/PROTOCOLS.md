@@ -82,7 +82,9 @@ runtime 类检查（matrix check 声明 `"class":"runtime"`）额外带 `"validU
 { "kind": "anchor", "at": "<ISO>", "count": "<已归档条目总数>", "chain": "<旧段链尾>", "contentHash": "<hex>" }
 ```
 
-后续条目自 `anchor.chain` 续链，跨段可验。anchor 只能位于首行；有归档段缺 anchor（截断/清空）或有 anchor 缺归档段（伪造）均 fail-closed。
+后续条目自 `anchor.chain` 续链，跨段可验。anchor 只能位于首行；有归档段缺 anchor（截断/清空）或有 anchor 缺归档段（伪造）均 fail-closed。归档段内容参与全史重放鉴权：anchor 的 `chain` 必须等于上一段链尾、`count` 必须等于此前各段数据条目累计——剔除归档条目或混入伪造归档都判 BROKEN/TAMPERED。
+
+尾部截断检测（head 锚）：每次账本追加后原子写 `state/ledger-head.json`（链尾 chain + 数据条目数 + fast 债务快照 + contentHash）；`receipt verify` 与 `risk scan` 对账锚与实际链尾/条目数，不一致即 TAMPERED（删尾行后剩余链仍是合法前缀，锚是长度事实源）。**残余风险如实声明**：无密钥的本地账本只能 tamper-evident 不能 tamper-proof——决心改写者可以连锚带链一起重写；`evidence.mode: "committed"` 把账本、回执与 head 锚纳入 git 提交史，改写必须与提交史对账，才是真正的缓解。
 
 ## 6. waiver
 

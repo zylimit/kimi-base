@@ -114,7 +114,7 @@ const HELP_VERBS = {
   doctor: `doctor [target]\n  自检安装完整性：必需文件存在、manifest 哈希比对、agents/skills\n  frontmatter 形状（name kebab-case、description ≤180）、rules 指针、JSON 可解析。\n  无参时自 cwd 向上找项目根；对源仓自动切换为源仓模式。error → 非零退出。`,
   'pack-check': `pack-check\n  发布面审计：无 state/、无私密 feedback、无 *.kimi-base-new、manifest 完整；\n  泄漏扫描（token/私钥/个人路径正则）命中即失败。`,
   task: `task start --goal "目标" --owned "glob,glob" --risk low|medium|high\n  task status | task complete | task cancel\n  单 active 任务；start 对 ownedPaths 做 SHA-256 基线快照；\n  complete 执行完成门：风险层 required kinds 全部 fresh receipt，缺口 exit 2。`,
-  gate: `gate [--risk low|medium|high] [--kind static|unit|integration|build|security|smoke] [--dry-run]\n  风险累积并集：high ⊇ medium ⊇ low。四态 PASS/FAIL/BLOCKED/SKIPPED。\n  缺命令=BLOCKED；空计划=BLOCKED；SKIPPED 仅 fast mode + allowFastSkip + 非 protected。\n  每次执行写 receipt（绑 task/fingerprint/risk/argvHash/证据哈希）并入哈希链账本。`,
+  gate: `gate [--risk low|medium|high] [--kind static|unit|integration|build|security|smoke] [--dry-run]\n  风险累积并集：high ⊇ medium ⊇ low。四态 PASS/FAIL/BLOCKED/SKIPPED。\n  缺命令=BLOCKED；空计划=BLOCKED；SKIPPED 仅 fast mode + allowFastSkip + 非 protected。\n  每次执行写 receipt（绑 task/fingerprint/risk/argvHash/证据哈希 + Receipt v2 三面：\n  policyHash/engineHash/catalogHash，无配置显式 null）并入哈希链账本。\n  fast 窗口内每条被跳检查另记 kind=deferred 债务条目入账本（REQ-054）。`,
   quality: `quality status\n  五性覆盖判定：模块定档 critical/high 的属性需 fresh PASS 认领证据；\n  反证压过佐证；声明未接线即缺口；SKIPPED 不覆盖也不反证。uncovered → exit 2。\n  runtime 类检查（matrix check 声明 "class":"runtime"）的回执带 validUntil 与\n  time-window-<N>h 标签：时间窗内不随树指纹过期，窗口过期即不 fresh。\nquality waiver create --check K --approver X --reason R --expires ISO --compensation C\n  禁词（security/safety/privacy/pii/secret/credential/destructive/隐私/个人信）拒绝；已执行 FAIL 永不可豁免；\n  过期/跨 fingerprint 自动失效。\nquality waiver list  列出全部 waiver 及其有效性。`,
   waiver: `waiver create --check K --approver X --reason R --expires ISO --compensation C
 waiver list
@@ -125,11 +125,11 @@ waiver list
   fitness: `fitness [--path p1,p2] [--staged] [--all]\n  内置五规则：no-secret-literal(error)、no-pii-in-logs(error)、no-silent-failure(error)、\n  no-unbounded-retry(warning)、no-unreferenced-deferral(warning，safety>=high 模块)。\n  抑制：同行注释 kimi-base-ignore: <rule>（留痕）。error 级命中 exit 1。\n  扫描面优先级：--path > --all（全仓 tracked∪未跟踪，dod 用）> --staged（暂存区，pre-commit 用）\n  > 默认工作树变更面；非 git 且无 --path = 降级 exit 3。`,
   impact: `impact <paths...> 或 impact --git [--risk R]\n  变更路径→模块归属→反向依赖闭包→受影响检查计划（planHash 含 risk）。\n  unmapped/shared/global/截断 → 保守扩散到全模块（宁可全跑不可漏测）。`,
   context: `context pack [--budget 60000] [--focus "glob,glob"]\n  预算化最小上下文包：focus+impact 选面；DENY 清单（.env/*.pem/id_rsa/.ssh/.aws/\n  *.key/*secret*）永不入包；装不下的进 omitted 显式报告；输出含 packHash。`,
-  receipt: `receipt verify\n  证据账本哈希链校验（chain=sha256(prev+contentHash)），含轮转 anchor 跨段续链；\n  证据文件重哈希。篡改/断链/缺失/漂移 fail-closed → exit 2；\n  链完好但回执指纹已移动（陈旧证据）→ exit 4。`,
+  receipt: `receipt verify\n  证据账本哈希链校验（chain=sha256(prev+contentHash)），含轮转 anchor 跨段续链；\n  证据文件重哈希。篡改/断链/缺失/漂移 fail-closed → exit 2；\n  链完好但回执绑定面已移动（陈旧证据）→ exit 4 并点名漂移面：指纹（diffHash）\n  或 Receipt v2 的 policyHash（策略）/engineHash（引擎树）/catalogHash（架构图）。\n  v1 旧回执按 v1 绑定面判定，缺新字段不谎报篡改；committed 证据模式下只动\n  .kimi-base/state/** 的证据入库提交不算漂移（clone 换机后直接可验）。`,
   review: `review start [--base <ref>]     开启评审会话：绑定当前指纹（diffHash）；空 diff → exit 3（no-change）。\n  --base 进入 range 模式：hash=sha256(git diff <ref>...HEAD)，HEAD 不变即有效。\n  重开时上一轮裁决摘要进 lineage（跨轮存活）后重新绑定。\nreview blue                     stdin {"claims":[{"claim","evidence"}]}：作者自证（只作靶子）；\n  缺 claim/evidence 整批拒绝 exit 1；会话陈旧 exit 4。\nreview lens <name> [--ad-hoc]   stdin {"findings":[{"severity","message","location"?,"reproduction"?}],\n  "unable"?,"unableReason"?}。severity ∈ error|warning|info；每条 finding 必须有\n  location（:行号 结尾，兼容 Windows 路径）或 reproduction，一条非法整批拒绝 exit 1。\n  非召集 lens 须 --ad-hoc（额外证据，不门控，error 仍计入裁决）；阶段门控越级拒报（stageGated:true）。\nreview verdict [--reviewer X] [--notes T]   裁决是计算的：阻断（blue 缺/前沿 lens 未报到）exit 1；\n  任一 error → FIX_REQUIRED exit 2；应到 lens unable → NEEDS_MORE_EVIDENCE exit 3；否则 ACCEPT exit 0。\n  round=lineage+1；FIX_REQUIRED 达 maxRounds（catalog.review.maxRounds，默认 3）→ escalate:true。\n  回执只在 ACCEPT 且终审时写入账本（kind:review）；消费者只认回执，不认本退出码。\nreview status                   会话摘要（阶段进度/已报/未报/backlog 结转/裁决）；无会话 exit 3。\nreview team                     打印召集 lens（含阶段）+ 剔除 lens（含原因）+ 生效剖面。\nreview backlog add              stdin {owner,expiry,summary,lens,location?}；expiry 须未来；\n  summary 命中 security|safety|privacy|pii|secret|credential|密码|密钥|凭据 → 拒绝 exit 1\n  （启发式拦截，非保证）。backlog 存 state/review-backlog.json，跨会话存活。\nreview backlog list             全部条目，过期者标记。review pack\n  证据包：base（最新 tag→origin/main→HEAD~1→根提交）、commit 清单、diffstat、\n  删除审计、未跟踪文件、完整 diff（>800 行溢出到 diff-<epoch>.patch）；\n  写 state/review/review-pack-<epoch>.md。非 git → exit 3。`,
-  fast: `fast on [hours=24] | fast off | fast status\n  限时质量旁路（.kimi-base/state/fast-mode.json，expires_epoch）。\n  protected 属性/kind（security/safety/privacy）免疫；每个 skip 留痕。\n  fast 是借账不是折扣：带 fastWindow 印记的回执不能关闭 task/release；\n  还债路径唯一——fast off 后重跑完整 gate。`,
+  fast: `fast on [hours=24] | fast off | fast status\n  限时质量旁路（.kimi-base/state/fast-mode.json，expires_epoch）。\n  protected 属性/kind（security/safety/privacy）免疫；每个 skip 留痕。\n  fast 是借账不是折扣：窗口内每条被跳检查记 kind=deferred 债务条目入哈希链账本；\n  关窗/过期/删 fast-mode.json 均不清债，risk scan 报 FAST_MODE_DEBT 直至偿清；\n  带 fastWindow 印记的回执不能关闭 task/release；还债路径唯一——窗口外同检查 fresh PASS。`,
   strength: `strength list                       列出四内置档（explore/rapid/balanced/strict）与自定义档的逐轴生效值；\n  无 strength.json 也 exit 0（内置档客观存在）。\nstrength status                     当前生效档（strength.json profile，strength set 的 state 覆盖优先）、\n  逐轴生效值、policyHash、rollout 模式；无 strength.json → exit 3（治理未开启）。\nstrength set --profile <档名>       写 .kimi-base/state/strength.json 覆盖当前档；未知档名 exit 1 列合法集。\nstrength explain [--risk low|medium|high|critical] [--operation develop|complete|package|release|deploy]\n  [--paths a,b]                    逐轴标注最终值来源（builtin/extends/floor:risk/floor:operation/\n  floor:attribute/floor:path）；floor 只升不降、多 floor 冲突逐轴取最高；\n  --paths 命中治理面 .kimi-base/** 或信任边界（auth/security/secrets 路径段）→ strict；\n  受影响模块声明 security/safety/privacy @ high+ → strict（floor:attribute）。\n  每次解析写有界 decision log（≤200 条，state/strength-decisions.jsonl，\n  含 policyRevision/inputDigest/reasons）。\n  配置契约：自定义档 extends 具名档逐轴只收紧，降级配置期报 STRENGTH_WEAKENING exit 1；\n  rollout=shadow 时只报告不阻断（status 响亮标注，task complete 的 completionMode 不执法）；\n  rollout=enforce 且生效档 completionMode=forbidden 时 task complete exit 2。`,
-  risk: `risk scan\n  主动风险识别：状态腐化隔离、账本断链、FAIL 连击、stale 锁、fast 过期、\n  脏树规模、证据膨胀、stale baseline。按严重度输出。`,
+  risk: `risk scan\n  主动风险识别：状态腐化隔离、账本断链、FAIL 连击、stale 锁、fast 过期、\n  fast 证据贷款欠债（FAST_MODE_DEBT：账本里未偿还的 DEFERRED 条目）、\n  脏树规模、证据膨胀、stale baseline。按严重度输出。`,
   'gate-audit': `gate-audit\n  对照 gate-log.jsonl 审计每个 hook/规则历史上是否真的拦过：\n  从未拦过的闸要么拿证据要么撤掉。`,
   retention: `retention prune [--dry-run]\n  按 harness.json retention 策略销毁过期 evidence/context；\n  保护当前 receipt 引用的证据。`,
   hook: `hook <event>（插件 hooks 调这里；stdin 读 JSON，payload.cwd 定项目根）\n  非 kimi-base 项目（无 .kimi-base/harness.json）静默 exit 0。\n  事件：\n    pre-tool-use-bash  危险命令分类器（deny 恒拦；review 默认拦，reviewAction=warn 降级提示）\n    pre-write          写前对账（owned 基线偏离/越界/敏感文件 → exit 2）\n    stop               完成门（有改动但缺 fresh receipt 或 progress.md 未同步 → exit 2；保险丝×N）\n    prompt-submit      修正信号关键词 → stdout 提醒（exit 0）\n    subagent-stop      "勿信自报、核客观证据"提醒（exit 0）\n    pre-compact        写 .kimi-base/state/compaction-note.json\n    session-start      会话横幅 + 写会话基线`,
@@ -284,7 +284,14 @@ async function dispatchStrength(ctx, sub, flags) {
   if (sub === 'set') {
     if (flags.profile === undefined || flags.profile === true) throw usageError('strength set 需要 --profile <档名>');
     const result = await setStrengthProfile(ctx, String(flags.profile));
-    printResult('strength set 完成', [`当前档：${result.profile}（写 .kimi-base/state/strength.json，覆盖 strength.json 的 profile）`]);
+    printResult('strength set 完成', [
+      `当前档：${result.profile}（写 .kimi-base/state/strength.json，覆盖 strength.json 的 profile）`,
+      // D5/REQ-055：committed 模式 state 覆盖永不入库——clone/换机后 policyHash 按入库的
+      // strength.json 重解析，旧回执会假陈旧。必须显式警告并给恢复一致的路径。
+      ...(ctx.evidenceMode === 'committed'
+        ? ['警告：evidence.mode=committed——state 覆盖（state/strength.json）是本地的，不随 git 入库；clone/换机后 policyHash 失配会使回执判陈旧。跨机一致请改 .kimi-base/strength.json 并提交，或在对端重跑 strength set --profile 恢复一致']
+        : [])
+    ]);
     return 0;
   }
   throw usageError(`未知 strength 子命令：${sub ?? '<缺>'}（list/status/set/explain）`);
@@ -612,6 +619,7 @@ async function dispatchCommand(argv) {
         `账本条目：${result.entries}（归档段 ${result.archives}）；证据校验：${result.evidenceChecked}；链：${result.chain.intact ? '完好' : '断裂'}`,
         ...result.problems.map((item) => `- ${item}`),
         ...result.stale.map((item) => `- ${item}`),
+        ...(result.notes ?? []).map((item) => `- note ${item}`),
         ...(result.staleNote ? [`- note ${result.staleNote}`] : [])
       ]);
       return code;

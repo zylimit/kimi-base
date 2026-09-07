@@ -125,6 +125,15 @@ export function boundedText(value, limit, suffix = '\n...[截断]') {
   return `${clean.slice(0, Math.max(0, limit - suffix.length))}${suffix}`;
 }
 
+// 有界尾部（与 boundedText 对偶：保尾不保头——尾部才是 decision-relevant 判定行）。
+// 先脱敏再截取（E3 评审 info 面：截取边缘不会把一条密钥切成可见碎片——脱敏在完整文本上
+// 做完整正则匹配，碎片风险在「先切后脱敏」顺序才存在）。
+export function boundedTail(value, limit, prefix = '[截断]…') {
+  const clean = redactSecrets(value);
+  if (clean.length <= limit) return clean;
+  return `${prefix}${clean.slice(-limit)}`;
+}
+
 export function toPosix(value) {
   return String(value).split(path.sep).join('/').replace(/^\.\//, '');
 }

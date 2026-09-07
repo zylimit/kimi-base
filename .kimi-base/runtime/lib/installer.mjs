@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import process from 'node:process';
 import { HarnessError, TOOL_VERSION, atomicWrite, normalizeLf, nowIso, pathExists, readJsonFile, runProcess, sha256, toPosix, usageError } from './core.mjs';
-import { INSTALL_MANIFEST_REL, INSTALL_RECEIPT_REL, STATE_DIR } from './paths.mjs';
+import { stateGitignoreContent } from './ledger.mjs';
+import { CONFIG_REL, INSTALL_MANIFEST_REL, INSTALL_RECEIPT_REL, STATE_DIR } from './paths.mjs';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 // 本文件位于 <源仓>/.kimi-base/runtime/lib/installer.mjs；源仓根向上三级。
@@ -47,7 +48,8 @@ export const SEED_ENTRIES = [
   { source: '.kimi-base/templates/AGENTS.md', path: 'AGENTS.md' }
 ];
 
-function normalizedBytes(bytes) {
+// LF 归一化（manifest/engineHash 同一口径）：含 NUL 的二进制原样哈希，文本一律归一到 LF。
+export function normalizedBytes(bytes) {
   if (bytes.includes(0)) return bytes;
   return Buffer.from(normalizeLf(bytes.toString('utf8')), 'utf8');
 }
@@ -342,8 +344,10 @@ export async function planInstall(target, sourceManifest, action) {
     content: manifestContent,
     expectedHash: sha256(normalizedBytes(Buffer.from(manifestContent, 'utf8')))
   };
-  // state 目录 .gitignore：运行时状态永不进 git。
-  const gitignoreContent = '*\n!.gitignore\n';
+  // state 目录 .gitignore：按目标证据模式落地（REQ-055/ADR-0009）——local（默认/缺配置/配置
+  // 暂不可读）整个 state/ 永不进 git；committed 放行账本与回执（证据日志本体永不入库）。
+  const targetConfig = await readJsonFile(path.join(target, CONFIG_REL), { required: false }).catch(() => null);
+  const gitignoreContent = stateGitignoreContent(targetConfig?.evidence?.mode === 'committed' ? 'committed' : 'local');
   const gitignoreOp = {
     kind: 'state-gitignore',
     path: `${STATE_DIR}/.gitignore`,

@@ -239,6 +239,42 @@ export async function selftestCommand() {
     }
     check('strength attribute floor：catalog 形状非法响亮报错不静默跳过', floorError?.code === 'CATALOG_INVALID', `实得 ${floorError?.code ?? '未拒绝'}`);
   }
+  // 21. isEvidenceOnlyAdvance 正反向锁定（P4 评审 testing warning：无条件 true 变异会把
+  // 「代码提交」误判为证据入库提交而假绿）：committed 模式下证据入库提交（只动
+  // .kimi-base/state/**）= true；代码内容提交 = false；local 模式一律 = false。
+  if (gitProbe.status === 'PASS') {
+    const { isEvidenceOnlyAdvance } = await import('./verify.mjs');
+    const advTmp = await import('node:fs/promises').then((fs) => fs.mkdtemp(path.join(tmpdir(), 'kimi-base-selftest-adv-')));
+    try {
+      const g = (args) => runProcess('git', args, { cwd: advTmp, timeoutMs: 15000 });
+      await g(['init', '-q']);
+      await writeFile(path.join(advTmp, 'a.txt'), 'one\n');
+      await g(['add', '-A']);
+      await g(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'init']);
+      const h1 = (await g(['rev-parse', 'HEAD'])).stdout.trim();
+      // 证据入库提交（只动 .kimi-base/state/**）
+      await fsp.mkdir(path.join(advTmp, '.kimi-base', 'state'), { recursive: true });
+      await fsp.writeFile(path.join(advTmp, '.kimi-base', 'state', 'ledger.jsonl'), '{}\n');
+      await g(['add', '-A']);
+      await g(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'evidence']);
+      const advCtx = { root: advTmp, evidenceMode: 'committed' };
+      const fpEvidence = await gitFingerprint(advCtx);
+      check('isEvidenceOnlyAdvance：证据入库提交 = true',
+        await isEvidenceOnlyAdvance(advCtx, { baseCommit: h1 }, fpEvidence) === true);
+      // 代码内容提交 ≠ 证据入库（无条件 true 变异在此现形）
+      await fsp.writeFile(path.join(advTmp, 'a.txt'), 'two\n');
+      await g(['add', '-A']);
+      await g(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'code change']);
+      const fpCode = await gitFingerprint(advCtx);
+      check('isEvidenceOnlyAdvance：代码内容提交 = false',
+        await isEvidenceOnlyAdvance(advCtx, { baseCommit: h1 }, fpCode) === false);
+      // local 模式无此豁免（无条件 true 变异第二面）
+      check('isEvidenceOnlyAdvance：local 模式恒 false',
+        await isEvidenceOnlyAdvance({ root: advTmp, evidenceMode: 'local' }, { baseCommit: h1 }, fpCode) === false);
+    } finally {
+      await rm(advTmp, { recursive: true, force: true }).catch(() => {});
+    }
+  }
   const failed = results.filter((item) => !item.ok);
   for (const item of results) process.stdout.write(`${item.ok ? 'PASS' : 'FAIL'} ${item.name}${item.detail ? ` — ${item.detail}` : ''}\n`);
   process.stdout.write(`selftest：${results.length - failed.length}/${results.length} 通过\n`);

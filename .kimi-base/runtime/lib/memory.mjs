@@ -12,7 +12,7 @@ import { atomicWrite, degradedError, normalizeLf, normalizeRepoPath, nowIso } fr
 import { fastModeStatus } from './fast.mjs';
 import { changedPaths, git } from './git.mjs';
 import { riskScan } from './hygiene.mjs';
-import { readLedgerEntries, verifyLedgerChain } from './ledger.mjs';
+import { readLedgerEntries, verifyLedgerHistory } from './ledger.mjs';
 import { getActiveTask } from './tasks.mjs';
 
 export const MEMORY_DEFAULTS = Object.freeze({
@@ -146,7 +146,7 @@ export async function invariantsDigest(ctx, budget = MEMORY_DEFAULTS.invariantsB
   const task = await getActiveTask(ctx).catch(() => null);
   const fast = await fastModeStatus(ctx).catch(() => ({ active: false, expired: false }));
   const ledger = await readLedgerEntries(ctx).catch(() => ({ entries: [], corrupt: false, archives: 0 }));
-  const chain = verifyLedgerChain(ledger.entries, { archives: ledger.archives });
+  const chain = await verifyLedgerHistory(ctx).catch((error) => ({ intact: false, reason: `账本读取失败：${error?.message ?? error}`, trusted: [] }));
   const last = [...ledger.entries].reverse().find((entry) => !entry.__corrupt && entry.kind === 'verification');
   const state = [
     `- 活跃任务：${task ? `${task.id}（risk=${task.risk}）` : '无'}`,

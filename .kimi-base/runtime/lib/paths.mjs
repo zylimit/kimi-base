@@ -11,6 +11,7 @@ export const ADAPTERS_REL = '.kimi-base/adapters.json';
 export const STRENGTH_CONFIG_REL = '.kimi-base/strength.json';
 
 export const LEDGER_FILE = 'ledger.jsonl';
+export const LEDGER_HEAD_FILE = 'ledger-head.json';
 export const TASKS_FILE = 'tasks.json';
 export const FAST_FILE = 'fast-mode.json';
 export const WAIVERS_FILE = 'waivers.json';

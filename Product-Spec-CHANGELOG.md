@@ -1,5 +1,17 @@
 # Product Spec 变更日志
 
+## v3.0.3（2026-09-07）P4 激活：REQ-053/054/055 Receipt v2 与贷款账本
+
+### 为什么改
+
+P4 完成，按 REQ-067 机制摘除三条 planned 标记。Receipt v2 绑定面（policyHash/engineHash/catalogHash）使策略收紧、引擎演进、catalog 变化自动令旧证据 stale；fast mode 完成向"证据贷款"的语义沉降（DEFERRED 入哈希链账本、关窗不清债、只有 fresh PASS 偿还）；可提交证据模式（evidence.mode=committed）关闭姐妹仓"证据不可移植"的共同盲区。
+
+### 变更
+
+- REQ-053（Receipt v2 绑定面）、REQ-054（fast 证据贷款账本）、REQ-055（可提交证据模式）摘 planned(P4) 标记，验收 tests/receipt-v2.test.mjs 15 用例全绿。
+- 实现附带两个语义细化（记录在案）：DRIFT 判定收窄为"镜像哈希能在账本历史中找到且非账本尾"（回滚才判 drift）；committed 模式下证据入库提交（纯 state 变更）不判指纹 stale。
+- 版本号 v3.0.2 → v3.0.3。
+
 ## v3.0.2（2026-09-07）P3 激活：REQ-051/052 强度策略引擎
 
 ### 为什么改
