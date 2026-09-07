@@ -4,7 +4,7 @@
 
 ## 布局铁律
 
-1. 载荷即 `.kimi-base/`（runtime/rules/templates/audit/githooks/adapters/example 种子）+ `.kimi-code/`。改任何载荷文件后必须同 commit 重新生成 `FRAMEWORK-MANIFEST.json`（`npm run manifest`），否则 `manifest --check` 红。
+1. 载荷即 `.kimi-base/`（runtime/rules/templates/audit/githooks/feedback/adapters/example 种子）+ `.kimi-code/`。改任何载荷文件后必须同 commit 重新生成 `FRAMEWORK-MANIFEST.json`（`npm run manifest`），否则 `manifest --check` 红。
 2. `.kimi-base/{harness,module-catalog,verification-matrix}.json` 是本仓**自用**治理配置，永不进安装面；安装面只发 `*.example.json` 种子（缺失才落地，永不覆盖）——`pack-check` 执法。
 3. `.kimi-base/state/` 是运行态，git-ignored，任何断言不得依赖其残留——`pack-check` 把 state 混入发布面判红。
 4. 不写第二套 Agent runtime；不修改 Kimi Code 内核；hooks 是护栏不是沙箱（提示词纪律）。
@@ -26,13 +26,13 @@
 
 ## 命令速查
 
-引擎：`node .kimi-base/runtime/kimi-base.mjs <verb>`。日常：`catalog lint` · `catalog discover` · `arch check` · `adr check` · `fitness` · `gate` · `dod` · `quality status` · `task start/status/complete` · `impact --git` · `review pack/start/blue/lens/verdict/status/team/backlog` · `recap` · `invariants` · `sync-check` · `spec lint/view` · `trace` · `rules-audit` · `skills-lint` · `agents-lint` · `cochange` · `budget` · `fleet` · `release` · `archive` · `doctor .` · `selftest`。全量语义见 `docs/OPERATIONS.md` 与 `docs/PROTOCOLS.md`。
+引擎：`node .kimi-base/runtime/kimi-base.mjs <verb>`。日常：`catalog lint` · `catalog discover` · `arch check` · `adr check` · `fitness` · `gate` · `dod` · `quality status` · `task start/status/complete` · `impact --git` · `review pack/start/blue/lens/verdict/status/team/backlog` · `feedback record/list/scan/propose` · `recap` · `invariants` · `sync-check` · `spec lint/view` · `trace` · `rules-audit` · `skills-lint` · `agents-lint` · `cochange` · `budget` · `fleet` · `release` · `archive` · `doctor .` · `selftest`。全量语义见 `docs/OPERATIONS.md` 与 `docs/PROTOCOLS.md`。
 
 ## 目录地图（索引非规则，提示词）
 
 - `.kimi-base/runtime/` 引擎（薄路由 kimi-base.mjs + lib/* 模块 + supervisor.mjs）
 - `.kimi-base/audit/` 独立审计脚本（禁 import 引擎）· `.kimi-base/githooks/` 第二道闸（`install --hooks` 挂载）
-- `.kimi-base/rules/` 下沉细则 · `.kimi-base/templates/` 文档模板 · `.kimi-base/adapters.json` 外部工具目录
+- `.kimi-base/rules/` 下沉细则 · `.kimi-base/templates/` 文档模板 · `.kimi-base/adapters.json` 外部工具目录 · `.kimi-base/feedback/` 进化信号（INDEX+templates 示例进载荷，根下私人条目不进发布面）
 - `.kimi-code/` 8 agents + 16 skills（既是本仓 dogfood 也是安装载荷）
 - `plugin/` 斜杠命令 + sessionStart skill · `tests/` 行为测试 · `docs/` 手册与 ADR
 

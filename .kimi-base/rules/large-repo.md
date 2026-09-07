@@ -89,7 +89,7 @@ no-secret-literal(error) / no-pii-in-logs(error) / no-silent-failure(error) / no
 - `sync-check [--staged] [--paths a,b]`：三文件同步机械执法——MEMORY_BEHIND_CODE / SPEC_WITHOUT_CHANGELOG → exit 1；非 git 无 --paths → exit 3；纯文档放行。
 - `spec lint` / `trace` / `spec view [--paths a,b|--all] [--budget N]`：需求可判定性 lint（error exit 1）、需求→测试覆盖门禁（coverage ≥ spec.minCoverage，默认 1.0；代码/测试悬空引用 exit 1，文档悬空只报告；只扫 REQ/NFR 声明族）、预算化需求摘要（省略显式点名）。
 - `rules-audit [--files a,b]`：宪法规则执法率（enforced/declared-prompt-only/unenforced）；默认纯建议，`rulesAudit.maxUnenforced` 设数字后超限 exit 1。
-- `skills-lint` / `agents-lint`：`.kimi-code/skills` 契约（name==目录、description、体积、重名）与根 AGENTS.md 体积预算（>16000 字节 error）；error → exit 1。
+- `skills-lint` / `agents-lint`：`.kimi-code/skills` 契约（name==目录、description、体积、重名；对话型 skill 缺示例/反例节 warning）与根 AGENTS.md 体积预算（>16000 字节 error）；error → exit 1。
 
 ## hooks 接线（插件 manifest → `hook <event>`）
 

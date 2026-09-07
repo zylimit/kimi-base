@@ -30,23 +30,7 @@ whenToUse: 每个会话开始时自动加载（插件 sessionStart）；非 kimi
 
 ## 第三步：意图路由
 
-用户消息与左列意图有 **1% 相关即调用** 对应 skill，不要等用户明说：
-
-| 用户意图 | 调用 skill |
-| --- | --- |
-| 需求、立项、产品规格 | product-spec-builder |
-| 架构、选型、ADR | arch-designer |
-| 五性（韧性/安全/功能安全/隐私/可靠性） | dfx-designer |
-| 计划、拆解、排期 | dev-planner |
-| 编码、实现、重构 | dev-builder |
-| 审查、review | code-review |
-| 测试、用例、覆盖率 | test-builder |
-| 修 bug、排障 | bug-fixer |
-| 发布、打包、上线 | release-builder |
-| 收尾、合分支、清理 | branch-finisher |
-| 大仓、monorepo、超大代码库 | large-repo-harness |
-
-一条意图命中多个时，按表格从上到下依次装载。
+意图 → skill 的路由表单源定义在 `.kimi-base/rules/intent-routing.md`——**完整读取该文件再路由**（口径：1% 相关即调用，不等用户明说；多命中按表序装载）。
 
 ## 恢复规则（会话恢复 / 上下文压缩后必须执行）
 

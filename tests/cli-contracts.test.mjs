@@ -5,8 +5,13 @@
  * 运行：node --test tests/cli-contracts.test.mjs
  *
  * 纪律（同 spec.test.mjs）：临时 git 仓/临时目录夹具、断言退出码与输出字段、不依赖
- * .kimi-base/state/ 残留。本文件未使用夹具需求 id（无 spec 夹具）；凡引用本仓 REQ-056
- * 均为真实追溯，非拼接夹具 id。
+ * .kimi-base/state/ 残留。本文件未使用夹具需求 id（无 spec 夹具）；凡引用本仓 REQ-056 /
+ * REQ-058 均为真实追溯，非拼接夹具 id。
+ *
+ * REQ-058 扩表（P6 前置，测试作者面）：feedback 动词（record/list/scan/propose）入锁定集
+ * ——39+help → 40+help。扩表只加表项与专条用例，既有断言语义不变（全部用例表驱动，
+ * 自动随表扩展）。写测时点 feedback 未实现：feedback 相关断言红因=「未知动词：feedback」
+ * （契约校验旁路、合法 flag 集不列出）/「CONTRACTS 缺 verb：feedback」（表对账），属预期。
  *
  * 断言输出的特别说明：REQ-056 契约 3/4/5/6 显式要求"exit 1 且输出列出合法 flag 集/
  * 点名重复 flag/点名空值 flag/裸 token 归为位置参数"。usageError 走 stderr，故这些用例
@@ -107,12 +112,15 @@ function harnessFixture(t) {
   return dir;
 }
 
-// ---------------- REQ-056 契约 2：40 个既有 verb 的 flag 现状表 ----------------
+// ---------------- REQ-056 契约 2：41 个 verb 的 flag 现状表 ----------------
 // 逐 verb 从 cli.mjs KNOWN_FLAGS（156-196 行）抄准 flag 名；kind 按 dispatchCommand
 // 内实际消费方式判定：消费字符串值（String()/Number()/csv()/直接传递）= value，
 // 只判断真值（Boolean()/if(flags.x)）= boolean。全局 flag：project=value（路径）、
 // help=boolean（只判真值）。
-// 表内 39 个 dispatch verb；第 40 个 verb 是 help（全局帮助，无自有 flag）。
+// 表内 40 个 dispatch verb；第 41 个 verb 是 help（全局帮助，无自有 flag）。
+// 第 40 个 dispatch verb = feedback（REQ-058，ADR-0010）：flag 粒度与注册表现状一致——
+// 按 verb 并集登记（record 的 --topic/--type/--description + propose 的 --skip，均 value；
+// list/scan 无自有 flag），子命令级 flag 约束由 dispatch 内部校验，不进本表。
 
 const EXPECTED_FLAGS = {
   install: { 'dry-run': 'boolean', target: 'value', hooks: 'boolean' },
@@ -154,8 +162,11 @@ const EXPECTED_FLAGS = {
   budget: { staged: 'boolean', baseline: 'value' },
   fleet: { fleet: 'value', deep: 'boolean', budget: 'value' },
   release: {},
+  // REQ-058 feedback 动词族（ADR-0010）：record --topic/--type/--description、
+  // propose --skip，均按 dispatch 消费方式判 value；verb 并集登记（注册表现状粒度）。
+  feedback: { topic: 'value', type: 'value', description: 'value', skip: 'value' },
 };
-const DISPATCH_VERBS = Object.keys(EXPECTED_FLAGS); // 39 个；第 40 个 = help
+const DISPATCH_VERBS = Object.keys(EXPECTED_FLAGS); // 40 个；第 41 个 = help
 const GLOBAL_FLAG_NAMES = ['project', 'help'];
 
 /** flag token 出现断言（--name 后不接词字符，防 --risk 误配 --riskx）。 */
@@ -166,7 +177,10 @@ function assertFlagToken(text, name, label) {
 // ---------------- 现状锁定（REQ-056 契约 2/3，写测时点应绿） ----------------
 
 describe('REQ-056 现状锁定：flag 表与未知 flag 拒绝', () => {
-  test('39 个 dispatch verb 逐一：未知 flag exit 1 且输出列出该 verb 合法 flag 集（含全局 project/help）', RT, (t) => {
+  test('40 个 dispatch verb 逐一：未知 flag exit 1 且输出列出该 verb 合法 flag 集（含全局 project/help）', RT, (t) => {
+    // REQ-058 注记：feedback 入表后本循环自动覆盖之。写测时点 feedback 未实现——
+    // 红因=「未知动词：feedback」（契约校验旁路），合法 flag 集（--topic/--type/
+    // --description/--skip + 全局）列不出，红在 assertFlagToken。属预期。
     for (const verb of DISPATCH_VERBS) {
       const r = run([verb, '--zzz-contract-probe']);
       assert.equal(r.code, 1, `${verb}：未知 flag 应 exit 1，实得 ${r.code}\n${out(r)}`);
@@ -219,12 +233,26 @@ describe('REQ-056 现状锁定：flag 表与未知 flag 拒绝', () => {
     assert.match(out(r), /未知动词/);
   });
 
-  test('40 个 verb 的 --help 全部 exit 0 且输出非空（help 清单单源派生后不得丢 verb）', RT, () => {
+  test('41 个 verb 的 --help 全部 exit 0 且输出非空（help 清单单源派生后不得丢 verb）', RT, () => {
     for (const verb of [...DISPATCH_VERBS, 'help']) {
       const r = run([verb, '--help']);
       assert.equal(r.code, 0, `${verb} --help 应 exit 0，实得 ${r.code}\n${out(r)}`);
       assert.ok(r.stdout.trim().length > 0, `${verb} --help 输出不应为空`);
     }
+  });
+
+  test('feedback 专条：未知 flag exit 1 且点名该 flag 并列出合法集、不报「未知动词」（REQ-058 扩表，写测时点红）', RT, () => {
+    // 与表驱动循环互补的防假绿专条：循环里 feedback 的 exit 1 可被「未知动词」凑出，
+    // 本条显式断言点名违规 flag 且不报「未知动词」（同 tests/feedback.test.mjs 纪律）。
+    // 红因=行为缺失：feedback 未注册 → contractOf 查表落空 → default 报「未知动词」exit 1，
+    // --zzz-contract-probe 永远不被点名、合法 flag 集（--topic/--type/--description/--skip）不列出。
+    const r = run(['feedback', 'list', '--zzz-contract-probe']);
+    assert.equal(r.code, 1, `未知 flag 应 exit 1，实得 ${r.code}\n${out(r)}`);
+    assertFlagToken(out(r), 'zzz-contract-probe', 'feedback 未知 flag 报文');
+    for (const name of ['topic', 'type', 'description', 'skip', ...GLOBAL_FLAG_NAMES]) {
+      assertFlagToken(out(r), name, 'feedback 合法 flag 集');
+    }
+    assert.doesNotMatch(out(r), /未知动词/, `契约校验失败不得报「未知动词」（证明 feedback 已注册）\n实际输出：${out(r)}`);
   });
 });
 
@@ -241,7 +269,7 @@ describe('REQ-056 契约注册表：单源派生', () => {
     assert.ok(Object.isFrozen(mod.CONTRACTS), 'CONTRACTS 必须冻结（Object.freeze）');
   });
 
-  test('CONTRACTS 逐 verb 形状 {usage, flags{name:{kind}}} 且 39 个既有 verb 的 flag 名/kind 与现状表逐条一致', RT, async (t) => {
+  test('CONTRACTS 逐 verb 形状 {usage, flags{name:{kind}}} 且 40 个既有 verb 的 flag 名/kind 与现状表逐条一致', RT, async (t) => {
     if (!fs.existsSync(CONTRACTS_PATH)) {
       assert.fail(`缺失 ${path.relative(REPO, CONTRACTS_PATH)}——无法校验契约表（本用例红因=文件缺失）`);
     }
@@ -267,7 +295,8 @@ describe('REQ-056 契约注册表：单源派生', () => {
         if (entry[opt] !== undefined) assert.ok(Array.isArray(entry[opt]), `${verb}.${opt} 必须是数组`);
       }
     }
-    // 防漂移：除 39 个 dispatch verb 外只允许 help（第 40 个 verb）入账。
+    // 防漂移：除 40 个 dispatch verb 外只允许 help（第 41 个 verb）入账。
+    // 写测时点红因=「CONTRACTS 缺 verb：feedback」（REQ-058 扩表先行，实现未落地），属预期。
     const extra = Object.keys(CONTRACTS).filter((k) => !DISPATCH_VERBS.includes(k) && k !== 'help');
     assert.deepEqual(extra, [], `CONTRACTS 出现现状表外 verb：${extra.join(', ')}`);
   });

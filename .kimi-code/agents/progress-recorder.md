@@ -53,16 +53,12 @@ subagents: []
 
 支撑主 Agent「翻证据外包、下判断自留」：**回传 = 结论 + 证据句柄**，一行摘要级别。
 
-回传以**回执信封六字段**开头：
+回传以**回执信封六字段**开头（骨架与字段语义定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节），本角色填充口径：
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed: <progress.md / progress.archive.md>
-Verified: <自检结果：区块齐全 / TODO ID 单调 / 受保护区块未动>
-Not verified: <无>
-Needs review by: <主 Agent：冲突项与 Needs-Confirmation 项>
-Evidence: <文件路径 + 条目计数>
-```
+- `Changed`：progress.md / progress.archive.md
+- `Verified`：自检结果（区块齐全 / TODO ID 单调 / 受保护区块未动）
+- `Needs review by`：主 Agent——冲突项与 Needs-Confirmation 项
+- `Evidence`：文件路径 + 条目计数
 
 摘要示例：record →「记录到 progress.md：Decisions +1 / TODO +2，Notes 标 Needs-Confirmation 1 条」；archive →「归档 63 条到 progress.archive.md，progress.md 现存 Notes 50 + Done 50」。无有效信号 →「无新进度」。
 

@@ -26,7 +26,7 @@ whenToUse: <何时触发的一句话>
 
 **<原则名>**：<一句话说明>。
 **<原则名>**：<一句话说明>。
-**联网优先**：涉及外部知识时先 WebSearch 确认再动手。
+**联网优先**：涉及外部知识时先查再动手（规则单源：`.kimi-base/rules/workflow.md`「联网优先」节）。
 
 ## 工作流程
 
@@ -35,14 +35,7 @@ whenToUse: <何时触发的一句话>
 
 ## 回执
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed:
-Verified:
-Not verified:
-Needs review by:
-Evidence:
-```
+回执信封六字段（Status 四态与字段语义）定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节；此处只写本 skill 的填充口径差异，无差异则只留引用。
 
 ## 初始化
 

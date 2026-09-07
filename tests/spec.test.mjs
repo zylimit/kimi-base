@@ -2,7 +2,9 @@
  * tests/spec.test.mjs
  * 需求可判定性与追溯（spec lint / trace / spec view）、rules-audit、skills-lint、agents-lint
  * 的契约测试 + 本仓资产锚点测试。
- * 追溯：REQ-033（spec/trace）REQ-034（rules-audit）REQ-035（skills/agents-lint）REQ-067（planned 生命周期标记）REQ-069（认知标注四态）。
+ * 追溯：REQ-033（spec/trace）REQ-034（rules-audit）REQ-035（skills/agents-lint）REQ-067（planned 生命周期标记）REQ-069（认知标注四态）REQ-075（skills-lint 对话型工艺检查）。
+ * 内容面资产锚点：REQ-070（派单第七字段 Business Context）REQ-071（交互深度四档）REQ-075（skill 工艺与去重）
+ * ——三条均为 planned，字面引用触发 trace 的 PLANNED_HAS_TESTS 提示，属预期工作流（实现落地同 commit 摘除标记）。
  *
  * 运行：node --test tests/spec.test.mjs
  *
@@ -339,6 +341,64 @@ describe('skills-lint', RT, () => {
     write(dir3, '.kimi-code/skills/foo/SKILL.md', skill('foo', '当演示时使用。'));
     const ok = run(['skills-lint'], { cwd: dir3 });
     assert.equal(ok.code, 0, out(ok));
+  });
+});
+
+// ---------------- skills-lint 对话型工艺（REQ-075，ADR-0012） ----------------
+
+describe('skills-lint 对话型工艺', RT, () => {
+  const skillBody = (name, body) => `---\nname: ${name}\ndescription: 当演示时使用。\n---\n\n${body}\n`;
+
+  test('对话型 skill 缺「示例」节与「反例」节 → warning（SKILL_NO_EXAMPLES / SKILL_NO_ANTIPATTERNS），exit 0 不阻断', (t) => {
+    const dir = mkdtemp(t);
+    writeHarness(dir);
+    write(dir, '.kimi-code/skills/product-spec-builder/SKILL.md', skillBody('product-spec-builder', '## 任务\n\n采集需求。'));
+    const r = run(['skills-lint'], { cwd: dir });
+    assert.equal(r.code, 0, `warning 坡道不得阻断：\n${out(r)}`);
+    assert.match(r.stdout, /SKILL_NO_EXAMPLES/, out(r));
+    assert.match(r.stdout, /SKILL_NO_ANTIPATTERNS/, out(r));
+  });
+
+  test('对话型 skill 具备示例节与反例节（含「常见错误」别名）→ 零工艺 warning', (t) => {
+    const dir = mkdtemp(t);
+    writeHarness(dir);
+    write(dir, '.kimi-code/skills/arch-designer/SKILL.md', skillBody('arch-designer', '## 对话示例与反例\n\n**示例一**\n\n**反例**\n\n- × 错误 → 正确。'));
+    write(dir, '.kimi-code/skills/bug-fixer/SKILL.md', skillBody('bug-fixer', '## 对话示例\n\n**示例一**\n\n## 常见错误\n\n- × 错误 → 正确。'));
+    const r = run(['skills-lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SKILL_NO_EXAMPLES|SKILL_NO_ANTIPATTERNS/, out(r));
+  });
+
+  test('执行型 skill 不要求示例/反例节 → 零工艺 warning（既有行为不破）', (t) => {
+    const dir = mkdtemp(t);
+    writeHarness(dir);
+    write(dir, '.kimi-code/skills/dev-builder/SKILL.md', skillBody('dev-builder', '## 目标\n\n实现纪律。'));
+    const r = run(['skills-lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SKILL_NO_EXAMPLES|SKILL_NO_ANTIPATTERNS/, out(r));
+  });
+
+  test('本仓 6 个对话型 skill 全合规：REPO 上 skills-lint 零工艺 warning', (t) => {
+    if (!RUNTIME_OK) {
+      t.skip('runtime 未就绪，显式跳过');
+      return;
+    }
+    const r = run(['skills-lint'], { cwd: REPO });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SKILL_NO_EXAMPLES|SKILL_NO_ANTIPATTERNS/, `本仓对话型 skill 必须全部具备示例与反例节：\n${out(r)}`);
+  });
+
+  test('围栏内假示例节不放行缺节 skill：「对话示例」仅在代码围栏内 → 仍报 SKILL_NO_EXAMPLES（P6 修复轮红测）', (t) => {
+    // 红因（写测时点）：skillsLint 的标题收集不豁免代码围栏（scan.mjs 直接 split('\n') 全量匹配），
+    // 围栏内模板片段的 `## 对话示例` 被当成真实章节，缺节 skill 被放行（SKILL_NO_EXAMPLES 缺失）。
+    const dir = mkdtemp(t);
+    writeHarness(dir);
+    write(dir, '.kimi-code/skills/product-spec-builder/SKILL.md', skillBody('product-spec-builder',
+      '## 任务\n\n采集需求。\n\n## 反例\n\n- × 错误 → 正确。\n\n引用模板片段：\n\n```markdown\n## 对话示例\n\n**示例一**\n```'));
+    const r = run(['skills-lint'], { cwd: dir });
+    assert.equal(r.code, 0, `warning 坡道不得阻断：\n${out(r)}`);
+    assert.match(r.stdout, /SKILL_NO_EXAMPLES/, `围栏内的假示例节不得算数——缺节 skill 仍须报 SKILL_NO_EXAMPLES\n实际输出：${out(r)}`);
+    assert.doesNotMatch(r.stdout, /SKILL_NO_ANTIPATTERNS/, `真实反例节在围栏外，不得误报\n实际输出：${out(r)}`);
   });
 });
 
@@ -869,5 +929,104 @@ describe('认知标注四态·确认途径口径', RT, () => {
     const r = run(['spec', 'lint'], { cwd: dir });
     assert.equal(r.code, 1, out(r));
     assert.match(r.stdout, /SPEC_LABEL_NO_VERIFY_PATH/, out(r));
+  });
+});
+
+// ---------------- 内容面资产锚点（REQ-070 / REQ-071 / REQ-075） ----------------
+// 三条均为 planned：断言全部指向仓内真实交付内容（本仓即被测对象），
+// 为内容面交付提供可机器核查的验收证据。红 = 交付内容缺斤短两，如实报告。
+
+describe('资产锚点：内容面（REQ-070/071/075）', () => {
+  const readRepo = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
+
+  /** 从单源 .kimi-base/rules/dispatch-contract.md「派单包七字段」节解析有序字段名（剥离括号注）。 */
+  const dispatchFields = () => {
+    const text = readRepo('.kimi-base/rules/dispatch-contract.md');
+    const section = text.match(/## 派单包七字段[\s\S]*?(?=\n## )/);
+    assert.ok(section, 'dispatch-contract.md 缺「派单包七字段」节');
+    return [...section[0].matchAll(/^\d+\.\s+\*\*([^*：:]+)\*\*/gm)]
+      .map((m) => m[1].split(/[（(]/)[0].trim());
+  };
+
+  // REQ-070 派单第七字段：七字段单源定义完整，且第七字段为 Business Context
+  test('REQ-070：dispatch-contract.md 七字段单源定义齐备，第七字段为 Business Context', () => {
+    assert.deepEqual(dispatchFields(), [
+      'Goal', 'Scope', 'Out of Scope', 'Existing Pattern', 'Verification', 'Escalation', 'Business Context',
+    ], '派单包七字段单源定义漂移');
+  });
+
+  // REQ-070：8 个 agent 输入契约段字段名与单源逐一对账（字段名从单源解析，不另写副本）
+  test('REQ-070：全部 8 个 agent 的输入契约段逐字段含单源七字段名', () => {
+    const fields = dispatchFields();
+    const dir = path.join(REPO, '.kimi-code', 'agents');
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
+    assert.equal(files.length, 8, `agents 数量漂移：${files.join(',')}`);
+    for (const f of files) {
+      const text = fs.readFileSync(path.join(dir, f), 'utf8');
+      const section = text.match(/## 输入契约[^\n]*\n[\s\S]*?(?=\n## )/);
+      assert.ok(section, `${f} 缺输入契约段`);
+      for (const field of fields) {
+        assert.ok(section[0].includes(`**${field}**`), `${f} 输入契约缺单源字段「${field}」`);
+      }
+    }
+  });
+
+  // REQ-070 需求存疑回流：三个交付侧 skill 各含「需求存疑」回流节（标题级匹配）
+  test('REQ-070：code-review/bug-fixer/test-builder 各含「需求存疑」回流节标题', () => {
+    for (const skill of ['code-review', 'bug-fixer', 'test-builder']) {
+      const text = readRepo(`.kimi-code/skills/${skill}/SKILL.md`);
+      assert.match(text, /^## .*需求存疑/m, `${skill} 缺「需求存疑」回流节标题`);
+    }
+  });
+
+  // REQ-071 交互四档：workflow.md 含四档定义与「问过的不再问」
+  test('REQ-071：workflow.md 含直推/确认/探索/委托四档定义与「问过的不再问」', () => {
+    const text = readRepo('.kimi-base/rules/workflow.md');
+    assert.match(text, /交互深度四档/, 'workflow.md 缺「交互深度四档」节');
+    for (const tier of ['直推档', '确认档', '探索档', '委托档']) {
+      assert.ok(text.includes(tier), `workflow.md 缺「${tier}」定义`);
+    }
+    assert.match(text, /问过的不再问/, 'workflow.md 缺「问过的不再问」澄清持久化规则');
+  });
+
+  // REQ-071 单源：templates/AGENTS.md 引用 workflow.md，不含第二份逐字四档定义
+  test('REQ-071：templates/AGENTS.md 引用 workflow.md 且不复制四档定义（单源）', () => {
+    const text = readRepo('.kimi-base/templates/AGENTS.md');
+    assert.ok(text.includes('.kimi-base/rules/workflow.md'), 'templates/AGENTS.md 必须引用 workflow.md 单源');
+    for (const tier of ['直推档', '确认档', '探索档', '委托档']) {
+      assert.ok(!text.includes(tier), `templates/AGENTS.md 出现「${tier}」——四档定义被复制，违反单源`);
+    }
+  });
+
+  // REQ-075 工艺：6 个对话型 skill 各含「对话示例」与反例节（≥2 个示例 + 反例行）
+  test('REQ-075：6 个对话型 skill 各含「对话示例」节（≥2 个多轮示例）与反例', () => {
+    const dialogSkills = ['product-spec-builder', 'arch-designer', 'dfx-designer', 'dev-planner', 'bug-fixer', 'code-review'];
+    for (const skill of dialogSkills) {
+      const text = readRepo(`.kimi-code/skills/${skill}/SKILL.md`);
+      const heading = text.match(/^## .*对话示例.*$/m);
+      assert.ok(heading, `${skill} 缺「对话示例」节标题`);
+      const rest = text.slice(heading.index + heading[0].length);
+      const next = rest.search(/^## /m);
+      const section = next === -1 ? rest : rest.slice(0, next);
+      const examples = section.match(/\*\*示例/g) ?? [];
+      assert.ok(examples.length >= 2, `${skill} 对话示例不足 2 个（实得 ${examples.length}）`);
+      assert.match(section, /^- ×/m, `${skill} 对话示例节缺反例行（- × ……）`);
+    }
+  });
+
+  // REQ-075 工艺：dev-builder 含「反合理化清单」
+  test('REQ-075：dev-builder 含「反合理化清单」节', () => {
+    assert.match(readRepo('.kimi-code/skills/dev-builder/SKILL.md'), /^## 反合理化清单/m);
+  });
+
+  // REQ-075 去重：意图路由表单源存在，两个引用方只引用不复制表本体
+  test('REQ-075：意图路由表单源 rules/intent-routing.md 存在，引用方只引用不复制', () => {
+    const routing = readRepo('.kimi-base/rules/intent-routing.md');
+    assert.match(routing, /意图路由表/, 'rules/intent-routing.md 缺路由表本体');
+    for (const rel of ['plugin/skills/kimi-base/SKILL.md', '.kimi-base/templates/AGENTS.md']) {
+      const text = readRepo(rel);
+      assert.ok(text.includes('.kimi-base/rules/intent-routing.md'), `${rel} 必须引用路由表单源`);
+      assert.ok(!/^\|\s*意图\s*\|\s*Skill\s*\|/m.test(text), `${rel} 复制了路由表本体，违反单源`);
+    }
   });
 });

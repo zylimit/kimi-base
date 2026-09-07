@@ -22,7 +22,7 @@
 │            CI（.kimi-base/audit/ 独立审计 + dod；权威面；templates/github-gate.yml 为采纳者模板）
 ├─ 配置层 ── .kimi-base/harness.json（唯一配置源，严格校验）
 │            module-catalog.json / verification-matrix.json / adapters.json
-├─ 引擎层 ── runtime/kimi-base.mjs（薄入口 33 行）+ runtime/lib/（31 模块，零依赖 Node stdlib）
+├─ 引擎层 ── runtime/kimi-base.mjs（薄入口 33 行）+ runtime/lib/（35 模块，零依赖 Node stdlib）
 │            runtime/supervisor.mjs（开发态进程守护，454 行独立文件）
 ├─ 状态层 ── .kimi-base/state/（git-ignored）：tasks/receipts/evidence/ledger/gate-log/fast/
 │            waivers/arch-trend/review·review-backlog/compaction-note
@@ -30,7 +30,7 @@
 └─ 文档层 ── docs/（架构/五性/大仓/运维/协议/角色/隔离）+ docs/adr/（7 条 ADR）
 ```
 
-引擎共 **40 个动词**（含 help；`init-modules` 为 `catalog discover` 的废弃别名，`waiver` 为 `quality waiver` 的顶层别名），退出码契约 v2（ADR-0006）：0 干净 / 1 用法·违例 / 2 阻断 / 3 降级 / 4 陈旧。
+引擎共 **41 个动词**（含 help；`init-modules` 为 `catalog discover` 的废弃别名，`waiver` 为 `quality waiver` 的顶层别名），退出码契约 v2（ADR-0006）：0 干净 / 1 用法·违例 / 2 阻断 / 3 降级 / 4 陈旧。
 
 ## 3. 三面执法（ADR-0002）
 
@@ -51,7 +51,7 @@
 | 任务与证据 | tasks / gate / ledger / verify / quality / fast / release / hygiene | 任务账本（ownedPaths 哈希基线）；四态门+回执；ledger.jsonl 哈希链（retention 轮转带 anchor）；receipt verify；五性覆盖判定+waiver（protected={security,safety,privacy}）；限时旁路（借账不能关闭 task）；发布就绪 composite；risk scan / gate-audit / retention / **DOD_STEPS 唯一事实源** |
 | 架构防腐 | catalog / arch / fitness / matrix / discover / cochange / budget | 模块目录+lint；check/baseline/trend（逐指标历史最优棘轮）+adr check；五规则文本扫描；验证矩阵+内置检查；catalog discover 草案推导；git 历史共变耦合；变更预算门 |
 | 评审 | review | 结构化对抗评审：九 lens 三阶段四剖面、属性收缩选拔、计算裁决、终审 ACCEPT 才写回执、backlog 持久（ADR-0003） |
-| 记忆与需求 | memory / scan | recap/invariants/archive/sync-check；spec lint / trace / spec view / rules-audit / skills-lint / agents-lint |
+| 记忆与需求 | memory / scan / feedback | recap/invariants/archive/sync-check；spec lint / trace / spec view / rules-audit / skills-lint / agents-lint；feedback record/list/scan/propose（occurrences 计数+INDEX 机器维护、毕业候选扫描、结构化提议，永不自动改规则，ADR-0010） |
 | 大仓与仓群 | context / fleet | impact 影响分析 + context pack；fleet 跨仓契约治理（ADR-0007） |
 | 安装与自检 | installer / admin / selftest | 事务安装（受管恒等映射+种子语义+逆序 rollback+--hooks）；manifest/doctor/pack-check；运行时自冒烟 |
 

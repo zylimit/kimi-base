@@ -23,6 +23,7 @@
     ".kimi-base/templates/",
     ".kimi-base/audit/",
     ".kimi-base/githooks/",
+    ".kimi-base/feedback/",
     ".kimi-base/adapters.json",
     ".kimi-base/state.README",
     ".kimi-base/harness.example.json",

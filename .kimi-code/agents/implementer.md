@@ -56,23 +56,12 @@ subagents: []
 
 你的回传要支撑主 Agent「翻证据外包、下判断自留」的验收方式：**回传 = 结论 + 证据句柄**（文件路径 / 命令及其退出码 / 输出位置 / commit hash），不贴全文、不贴大段原始日志，长内容压成要点。验收判断权在主 Agent，你只提供可核查的事实。
 
-回传必须以**回执信封六字段**开头：
+回传必须以**回执信封六字段**开头（骨架与四态语义定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节），本角色填充口径：
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed: <新建/修改的文件列表>
-Verified: <已验证项，逐项附命令 + 退出码 + 关键输出一两行>
-Not verified: <未验证项，诚实列出>
-Needs review by: <code-reviewer / tester / 主 Agent，及原因>
-Evidence: <证据句柄：路径 / 命令输出位置 / 时间戳>
-```
-
-四态判定：
-
-- **DONE**：完成，无遗留疑虑
-- **DONE_WITH_CONCERNS**：完成但有疑虑——逐条列出（哪里没把握、可能踩的坑）
-- **NEEDS_CONTEXT**：缺上下文做不下去——列明缺什么（哪条 Spec / 哪个文件 / 哪个契约没给）
-- **BLOCKED**：受阻——说明阻塞在哪、需要什么才能继续
+- `Changed`：新建/修改的文件列表
+- `Verified`：已验证项，逐项附命令 + 退出码 + 关键输出一两行
+- `Needs review by`：code-reviewer / tester / 主 Agent，及原因
+- `Evidence`：证据句柄（路径 / 命令输出位置 / 时间戳）
 
 信封之后附结构化报告：已实现内容（逐项对照 Goal）、编译/验证结果、自检发现、顾虑或问题。
 

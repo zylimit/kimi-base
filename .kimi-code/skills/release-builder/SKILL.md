@@ -62,14 +62,7 @@ Fast Mode 不豁免发布闸。
 
 ## 回执
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed:
-Verified:
-Not verified:
-Needs review by:
-Evidence: <artifact 路径/digest、版本/commit、时间戳、发布闸四项结果、目标健康、回滚入口>
-```
+回执信封六字段（Status 四态与字段语义）定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节。本 skill 填充口径：`Evidence` 必须含 artifact 路径/digest、版本/commit、时间戳、发布闸四项结果、目标健康、回滚入口。
 
 ## 初始化
 

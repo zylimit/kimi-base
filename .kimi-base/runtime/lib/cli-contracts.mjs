@@ -55,13 +55,16 @@ export const CONTRACTS = Object.freeze({
   budget: { usage: 'budget [--staged|--baseline ref]', positional: { min: 0, max: 0 }, flags: { staged: boolean, baseline: value } },
   fleet: { usage: 'fleet lint|impact <contract>|status|recap [--fleet path] [--deep] [--budget N]', positional: { min: 0, max: 2 }, flags: { fleet: value, deep: boolean, budget: value } },
   release: { usage: 'release', positional: { min: 0, max: 0 }, flags: {} },
-  // 第 40 个 verb：全局帮助，无自有 flag；dispatch 在契约校验前短路处理。
+  // REQ-058 feedback 动词族（ADR-0010）：record --topic/--type/--description、propose --skip，
+  // 均按 dispatch 消费方式判 value；verb 并集登记，子命令级约束由 dispatch 内部校验。
+  feedback: { usage: 'feedback record --topic T --type Y --description D | list | scan | propose [--skip T]', positional: { min: 1, max: 1 }, flags: { topic: value, type: value, description: value, skip: value } },
+  // 第 41 个 verb：全局帮助，无自有 flag；dispatch 在契约校验前短路处理。
   help: { usage: 'help', positional: { min: 0, max: 0 }, flags: {} }
 });
 
 // REQ-052 strength 动词族契约（ADR-0008）。单列导出而不入 CONTRACTS：CONTRACTS 键集被
 // REQ-056 现状表行为测试（tests/cli-contracts.test.mjs 的 EXPECTED_FLAGS/extra 断言）锁定为
-// 39 dispatch verb + help，扩表属独立测试作者面；扩表落地后本条目应并入 CONTRACTS。
+// 40 dispatch verb + help，扩表属独立测试作者面；扩表落地后本条目应并入 CONTRACTS。
 // cli.mjs 的 dispatch/flag 校验/help 对本契约的派生方式与 CONTRACTS 条目完全一致。
 export const STRENGTH_CONTRACT = Object.freeze({
   usage: 'strength list | status | set --profile P | explain [--risk R] [--operation O] [--paths a,b]',

@@ -52,14 +52,13 @@ subagents: []
 
 支撑主 Agent「翻证据外包、下判断自留」：回传 = 结论 + 证据句柄（feedback 文件路径 + frontmatter 数据），不贴全文。
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed: 无（只读）
-Verified: <扫描覆盖的 feedback 数量与索引状态>
-Not verified: <数据不完整处>
-Needs review by: <用户——每条提议逐条确认 / 跳过>
-Evidence: <各提议对应的 feedback 文件路径 + occurrences/scores 数据>
-```
+回传以**回执信封六字段**开头（骨架与字段语义定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节），本角色填充口径：
+
+- `Changed`：无（只读）
+- `Verified`：扫描覆盖的 feedback 数量与索引状态
+- `Not verified`：数据不完整处
+- `Needs review by`：用户——每条提议逐条确认 / 跳过
+- `Evidence`：各提议对应的 feedback 文件路径 + occurrences/scores 数据
 
 信封之后附完整提议清单（按 规则毕业 / Skill 优化 / 新 Skill 提议 分组）。无信号时仅回「无进化建议」。
 

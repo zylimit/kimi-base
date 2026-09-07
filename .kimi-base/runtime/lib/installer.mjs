@@ -1,6 +1,7 @@
 // lib/installer.mjs —— 安装事务（install/upgrade/uninstall）
 // 复制面 = 源仓 .kimi-base/{runtime,rules,templates,audit,githooks} + .kimi-base/{adapters.json,state.README} + .kimi-code/（恒等映射）
-// + 种子文件（*.example.json → 目标同名配置；templates/AGENTS.md → AGENTS.md）。
+// + 种子文件（*.example.json → 目标同名配置；templates/AGENTS.md → AGENTS.md）
+// + 条件受管面 .kimi-base/feedback（存在才纳入；isStableAsset 只放行 FEEDBACK-INDEX.md 与 templates/）。
 // LF 归一化 SHA-256 区分"框架基线 vs 用户定制"；staging + 逐文件备份 +
 // post-hash 校验 + 失败逆序 rollback；KIMI_BASE_INSTALL_FAIL_AFTER 故障注入。
 
@@ -37,6 +38,12 @@ export const MANAGED_ENTRIES = [
   '.kimi-base/verification-matrix.example.json',
   '.kimi-code'
 ];
+// 条件受管面（存在才纳入复制面，缺失不报错）：.kimi-base/feedback 是 REQ-058/ADR-0010 的
+// 新增载荷，老版载荷与只镜像 MANAGED_ENTRIES 字面集的源仓副本（测试夹具）没有该目录，
+// 硬要求会让既有安装路径全部 SOURCE_SURFACE_MISSING。面内仍走 isStableAsset 白名单——
+// 只有 FEEDBACK-INDEX.md 与 templates/ 示例进复制面，私人 feedback 条目（feedback/ 根
+// 下的 *.md）永不发布（承 cc 先例）。
+export const CONDITIONAL_MANAGED_ENTRIES = ['.kimi-base/feedback'];
 // 种子文件：仅 install 且目标缺省时写入；upgrade 永不覆盖；uninstall 仅当哈希仍等于原始种子才删。
 export const SEED_ENTRIES = [
   { source: '.kimi-base/harness.example.json', path: '.kimi-base/harness.json' },
@@ -111,6 +118,17 @@ async function copySurfaceEntries() {
     const absolute = path.join(SOURCE_ROOT, managed);
     const info = await stat(absolute).catch(() => null);
     if (!info) throw new HarnessError(`源仓复制面缺失：${managed}`, 'SOURCE_SURFACE_MISSING');
+    if (info.isDirectory()) {
+      for (const relative of await walkAssetFiles(absolute, SOURCE_ROOT)) entries.push({ source: relative, path: relative });
+    } else {
+      entries.push({ source: managed, path: managed });
+    }
+  }
+  // 条件受管面：源仓有才纳入（isStableAsset 白名单照样过滤——私人条目不进复制面）。
+  for (const managed of CONDITIONAL_MANAGED_ENTRIES) {
+    const absolute = path.join(SOURCE_ROOT, managed);
+    const info = await stat(absolute).catch(() => null);
+    if (!info) continue;
     if (info.isDirectory()) {
       for (const relative of await walkAssetFiles(absolute, SOURCE_ROOT)) entries.push({ source: relative, path: relative });
     } else {

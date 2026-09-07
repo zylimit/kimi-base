@@ -16,28 +16,15 @@
 ## 二、派单与回执
 
 - 派单包七字段：Goal / Scope / Out of Scope / Existing Pattern / Verification / Escalation / Business Context（业务上下文，主 Agent 从 Product-Spec 抄录 REQ 动机与受益人，fresh 实例不许猜；单源定义见 `.kimi-base/rules/dispatch-contract.md`）。
-- 回执信封六字段：Status / Changed / Verified / Not verified / Needs review by / Evidence。
+- 回执信封六字段：Status / Changed / Verified / Not verified / Needs review by / Evidence（骨架与语义定义见 `.kimi-base/rules/dispatch-contract.md`）。
 - 四态自评：DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED；BLOCKED 是诚实不是失败。
 - 单次派单 >60 分钟 = 任务分解不合理，先拆再派。
 
 ## 三、工作流路由（1% 相关即调用对应 skill）
 
-| 意图 | Skill |
-| --- | --- |
-| 需求/产品定义 | product-spec-builder（签字闸后才进下游） |
-| 架构设计/防腐 | arch-designer → 读 `.kimi-base/rules/large-repo.md` |
-| 五性（韧性/安全/功能安全/隐私/可靠性） | dfx-designer → 读 `.kimi-base/rules/quality-attributes.md` |
-| 开发计划 | dev-planner（无占位符原则） |
-| 编码实现 | dev-builder |
-| 代码审查 | code-review（三阶段） |
-| 测试 | test-builder（红测先行，测者≠作者） |
-| 修缺陷 | bug-fixer（red-locks-the-bug：先补红测再修） |
-| 发布 | release-builder（全量验证+隐私审计） |
-| 收尾交接 | branch-finisher |
-| 大仓作业 | large-repo-harness |
-| 对抗审查 | red-blue-review |
+意图 → skill 路由表的单源定义：`.kimi-base/rules/intent-routing.md`——命中本指针必须完整读取再行动。
 
-全流程细则（审批三档/签字闸/验证话术）：读 `.kimi-base/rules/workflow.md`。
+全流程细则（审批三档/签字闸/验证话术/联网优先）：读 `.kimi-base/rules/workflow.md`。
 
 ## 四、治理命令（agent 可直接执行）
 

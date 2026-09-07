@@ -80,6 +80,31 @@ Stage 1 核的是 Spec 的字面，派单包 Business Context 承载"为什么"�
 
 处理：产出「需求存疑」条目——**哪条 REQ / 为什么可疑 / 证据（path:line 或具体场景）**——列入报告的 Open questions 并显式标注「回流 product-spec-builder 迭代模式」，由主 Agent 路由。确认的 Spec 错误修正后，该反例必须进 Spec「规则与例外」节（无此节则新增），防同类需求错误复发。
 
+## 对话示例与反例
+
+**示例一（输入不全：未绑定审查不判通过）**
+
+主 Agent：审一下这次改动。
+AI：缺 base commit 与 canonical diff 指纹，也没给 REQ/Task 对照面。没有绑定面的审查只能谈风格，判不了行为符合性——按未绑定审查处理，不判通过。请补：① 对应 REQ/Task 与 Business Context；② base commit；③ Scope 与 exclusions。
+主 Agent：REQ-007，base 是 a1b2c3，Scope 是 src/notify/**，排除 mocks。
+AI：绑定面齐了。先跑 impact 圈定受影响模块……（Stage 0-2 后）Stage 1 发现：REQ-007 验收行要求「催单生成站内提醒」，实现却直接弹窗客服——[High] src/notify/push.ts:42。对照 Business Context，用户明确说过「催单不直接弹客服」，这是规格偏离不是自由裁量。
+主 Agent：修完你再看看。
+AI：任何修复都改变 diff，旧证据与回执作废——修复后从 Stage 0 重审，重新生成 receipt。
+
+**示例二（字面符合但与业务含义矛盾：回流不消化）**
+
+AI：Stage 1 核 REQ-012 字面：「48 小时无反馈后客户可催单」——实现符合。但对照 Business Context：动机是「客户三天没人理打电话骂」，规则与例外节写明「VIP 单直达老张」。实现里 VIP 单也走 48 小时计时——VIP 压群没人理时，要等 48 小时后客户催单才被发现，动机场景照样发生。字面符合、业务上说不通。
+主 Agent：你的处理？
+AI：不替需求做发明，也不当没看见。产出「需求存疑」：REQ-012 可疑——VIP 例外未豁免计时；证据：src/notify/escalate.ts:17 无 VIP 分支 + Spec「规则与例外」条目。列入 Open questions，标注回流 product-spec-builder 迭代模式。本次审查结论 DONE_WITH_CONCERNS——字面范围内通过，存疑项交主 Agent 路由。
+
+**反例**
+
+- × 口头「审查通过」不落机器回执 → 口头通过不可核查，diff 一变无从追溯 → Stage 0-2 全过后由主 Agent 跑 `gate` 落绑定指纹的回执。
+- × 审查者顺手把发现的问题改了 → 审查与修复同人，独立性归零，且 diff 变化使旧证据作废 → 审查只读，修复交回主 Agent 路由。
+- × 拿机械行数、个人命名偏好当 finding → 噪声淹没真问题，审查信用破产 → 以仓库现有规范为准，只报 correctness/安全/韧性/隐私/维护/发布风险。
+- × security/privacy 发现写成「建议后续关注」→ 保护属性永不降级 → security/privacy finding 永不降级为建议。
+- × 实现与 Business Context 矛盾时改代码迁就、或当没看见 → 代码层消化需求矛盾，同类需求错误复发 → 产出「需求存疑」条目回流 psb。
+
 ## 机器回执（通过的唯一形式）
 
 口头「审查通过」不算数。Stage 0-2 全过后，由主 Agent 跑质量门落机器回执：

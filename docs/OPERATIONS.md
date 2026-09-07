@@ -42,6 +42,7 @@ node .kimi-base/runtime/kimi-base.mjs task complete       # 完成门
 | `invariants` | ≤1200 字符铁律+实时状态；压缩后与阶段边界重读 |
 | `archive [--apply]` | progress.md 超预算时把最旧 Done/Notes 归档进 progress.archive.md（默认 dry-run） |
 | `sync-check [--staged]` | 三文件同步执法：代码动而 progress.md 不动 / Spec 动而 CHANGELOG 不动 → exit 1 |
+| `feedback record\|list\|scan\|propose` | 进化信号引擎（REQ-058/ADR-0010）：record 同主题去重 occurrences+1 并机器维护 FEEDBACK-INDEX；scan 只读毕业候选（单条 occurrences≥3 / 同 type 聚类 ≥3 主题 / repeated-operation ≥5 → 新 skill 候选）；propose 结构化提议（目标层 check>fitness>skill>AGENTS.md，永不自动改规则，`--skip` 记 skipped:true 不再重复提议） |
 | `spec lint` | 需求可判定性：规范词/触发/度量/验收/占位符/重复 id/planned 标记 phase 编号（PLANNED_NO_PHASE） |
 | `trace` | 需求→测试覆盖门禁（spec.minCoverage 默认 1.0）与悬空引用；`状态：planned(P<n>)` 标记的规划需求不计入覆盖率分母、单列计数，被测试引用报 PLANNED_HAS_TESTS（实现落地同 commit 摘标记，ADR-0011）；末行 `trace 摘要：{...}` 为机器可读投影 |
 | `spec view [--paths a,b\|--all]` | 预算化需求摘要（本次变更触达哪些需求） |

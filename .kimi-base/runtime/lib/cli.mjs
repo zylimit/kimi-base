@@ -13,6 +13,7 @@ import { buildContextPack, impactAnalysis } from './context.mjs';
 import { HarnessError, TOOL_VERSION, csv, nowIso, parseCliArgs, usageError } from './core.mjs';
 import { discoverCatalog, discoverWrite, initModulesAlias } from './discover.mjs';
 import { fastModeSet } from './fast.mjs';
+import { listFeedback, proposeFeedback, recordFeedback, scanFeedback, skipFeedback } from './feedback.mjs';
 import { runFitness } from './fitness.mjs';
 import { fleetImpact, fleetLint, fleetRecap, fleetStatus, requireFleet } from './fleet.mjs';
 import { runGate } from './gate.mjs';
@@ -68,6 +69,10 @@ hook  outward 契约保持 0（放行）/2（拦截）。
   review blue / lens <n> [--ad-hoc] / verdict / status / team / backlog add|list / pack
                                    Blue 自证 → 各 lens 报到 → 计算裁决（终审 ACCEPT 才写回执）
   fast on [hours]|off|status       限时质量旁路（默认 24h；protected 免疫）
+  feedback record --topic T --type Y --description D
+                                   记录进化信号（同主题去重 occurrences+1；INDEX 机器维护）
+  feedback list | scan | propose [--skip T]
+                                   五字段清单 / 毕业候选扫描（只读）/ 结构化提议（永不自动改规则）
   strength list|status|set --profile P|explain [--risk R] [--operation O] [--paths a,b]
                                    强度策略引擎：四内置档×12 封闭控制轴；extends 只收紧；
                                    floor 只升不降取最高；rollout=shadow 只报告不阻断
@@ -128,6 +133,7 @@ waiver list
   receipt: `receipt verify\n  证据账本哈希链校验（chain=sha256(prev+contentHash)），含轮转 anchor 跨段续链；\n  证据文件重哈希。篡改/断链/缺失/漂移 fail-closed → exit 2；\n  链完好但回执绑定面已移动（陈旧证据）→ exit 4 并点名漂移面：指纹（diffHash）\n  或 Receipt v2 的 policyHash（策略）/engineHash（引擎树）/catalogHash（架构图）。\n  v1 旧回执按 v1 绑定面判定，缺新字段不谎报篡改；committed 证据模式下只动\n  .kimi-base/state/** 的证据入库提交不算漂移（clone 换机后直接可验）。`,
   review: `review start [--base <ref>]     开启评审会话：绑定当前指纹（diffHash）；空 diff → exit 3（no-change）。\n  --base 进入 range 模式：hash=sha256(git diff <ref>...HEAD)，HEAD 不变即有效。\n  重开时上一轮裁决摘要进 lineage（跨轮存活）后重新绑定。\nreview blue                     stdin {"claims":[{"claim","evidence"}]}：作者自证（只作靶子）；\n  缺 claim/evidence 整批拒绝 exit 1；会话陈旧 exit 4。\nreview lens <name> [--ad-hoc]   stdin {"findings":[{"severity","message","location"?,"reproduction"?}],\n  "unable"?,"unableReason"?}。severity ∈ error|warning|info；每条 finding 必须有\n  location（:行号 结尾，兼容 Windows 路径）或 reproduction，一条非法整批拒绝 exit 1。\n  非召集 lens 须 --ad-hoc（额外证据，不门控，error 仍计入裁决）；阶段门控越级拒报（stageGated:true）。\nreview verdict [--reviewer X] [--notes T]   裁决是计算的：阻断（blue 缺/前沿 lens 未报到）exit 1；\n  任一 error → FIX_REQUIRED exit 2；应到 lens unable → NEEDS_MORE_EVIDENCE exit 3；否则 ACCEPT exit 0。\n  round=lineage+1；FIX_REQUIRED 达 maxRounds（catalog.review.maxRounds，默认 3）→ escalate:true。\n  回执只在 ACCEPT 且终审时写入账本（kind:review）；消费者只认回执，不认本退出码。\nreview status                   会话摘要（阶段进度/已报/未报/backlog 结转/裁决）；无会话 exit 3。\nreview team                     打印召集 lens（含阶段）+ 剔除 lens（含原因）+ 生效剖面。\nreview backlog add              stdin {owner,expiry,summary,lens,location?}；expiry 须未来；\n  summary 命中 security|safety|privacy|pii|secret|credential|密码|密钥|凭据 → 拒绝 exit 1\n  （启发式拦截，非保证）。backlog 存 state/review-backlog.json，跨会话存活。\nreview backlog list             全部条目，过期者标记。review pack\n  证据包：base（最新 tag→origin/main→HEAD~1→根提交）、commit 清单、diffstat、\n  删除审计、未跟踪文件、完整 diff（>800 行溢出到 diff-<epoch>.patch）；\n  写 state/review/review-pack-<epoch>.md。非 git → exit 3。`,
   fast: `fast on [hours=24] | fast off | fast status\n  限时质量旁路（.kimi-base/state/fast-mode.json，expires_epoch）。\n  protected 属性/kind（security/safety/privacy）免疫；每个 skip 留痕。\n  fast 是借账不是折扣：窗口内每条被跳检查记 kind=deferred 债务条目入哈希链账本；\n  关窗/过期/删 fast-mode.json 均不清债，risk scan 报 FAST_MODE_DEBT 直至偿清；\n  带 fastWindow 印记的回执不能关闭 task/release；还债路径唯一——窗口外同检查 fresh PASS。`,
+  feedback: `feedback record --topic <主题> --type <五类之一> --description <描述>\n  记录进化信号：topic 归一化（trim+小写+空白/下划线/连续连字符折叠为单连字符），同主题去重\n  occurrences+1 并刷新 updated；frontmatter 七键与 FEEDBACK-INDEX.md 由引擎单一维护；\n  读-改-写由跨进程文件锁互斥（并发不丢计数）。\n  type 合法集：user-correction / uncovered-scenario / repeated-operation / quality-issue / skill-effectiveness。\nfeedback list   五字段清单（主题/类型/occurrences/graduated/skipped）；空目录 exit 0 显式报空。\nfeedback scan   毕业候选扫描（不改任何规则与有效条目，exit 恒 0）：单条 occurrences≥3 → 毕业候选；\n  同 type 跨 ≥3 个主题 → 聚类候选；repeated-operation 且 occurrences≥5 → 新 skill 候选。\n  graduated/skipped 条目不报（宁漏不滥）；损坏条目（缺 frontmatter）隔离为 .corrupt-<ts> 并警告，不拖死扫描。\nfeedback propose [--skip <topic>]\n  对候选输出结构化提议：目标层优先级 可执行 check > fitness 规则 > skill 步骤 > AGENTS.md 散文，\n  每条带证据指针（feedback id + occurrences）；引擎永不自动改规则，落地恒需人工确认。\n  --skip：被拒提议记 frontmatter skipped:true（不删条目），之后 scan/propose 不再报该主题。`,
   strength: `strength list                       列出四内置档（explore/rapid/balanced/strict）与自定义档的逐轴生效值；\n  无 strength.json 也 exit 0（内置档客观存在）。\nstrength status                     当前生效档（strength.json profile，strength set 的 state 覆盖优先）、\n  逐轴生效值、policyHash、rollout 模式；无 strength.json → exit 3（治理未开启）。\nstrength set --profile <档名>       写 .kimi-base/state/strength.json 覆盖当前档；未知档名 exit 1 列合法集。\nstrength explain [--risk low|medium|high|critical] [--operation develop|complete|package|release|deploy]\n  [--paths a,b]                    逐轴标注最终值来源（builtin/extends/floor:risk/floor:operation/\n  floor:attribute/floor:path）；floor 只升不降、多 floor 冲突逐轴取最高；\n  --paths 命中治理面 .kimi-base/** 或信任边界（auth/security/secrets 路径段）→ strict；\n  受影响模块声明 security/safety/privacy @ high+ → strict（floor:attribute）。\n  每次解析写有界 decision log（≤200 条，state/strength-decisions.jsonl，\n  含 policyRevision/inputDigest/reasons）。\n  配置契约：自定义档 extends 具名档逐轴只收紧，降级配置期报 STRENGTH_WEAKENING exit 1；\n  rollout=shadow 时只报告不阻断（status 响亮标注，task complete 的 completionMode 不执法）；\n  rollout=enforce 且生效档 completionMode=forbidden 时 task complete exit 2。`,
   risk: `risk scan\n  主动风险识别：状态腐化隔离、账本断链、FAIL 连击、stale 锁、fast 过期、\n  fast 证据贷款欠债（FAST_MODE_DEBT：账本里未偿还的 DEFERRED 条目）、\n  脏树规模、证据膨胀、stale baseline。按严重度输出。`,
   'gate-audit': `gate-audit\n  对照 gate-log.jsonl 审计每个 hook/规则历史上是否真的拦过：\n  从未拦过的闸要么拿证据要么撤掉。`,
@@ -145,7 +151,7 @@ waiver list
   spec: `spec lint\n  需求可判定性：id 形如 REQ-001 / REQ-<域>-001 / NFR-001（裸形式与领域形式都合法）。\n  块 = id 行起 14 行。NOT_NORMATIVE（缺 SHALL/MUST/必须/不得/应当）/NO_METRIC（NFR 缺\n  数字+单位）/NO_ACCEPTANCE（缺 验收/Acceptance/Given/Verification/验证）/PLACEHOLDER\n  （TBD/TODO/待补充/待定）/DUPLICATE_ID 为 error；NO_TRIGGER（REQ 缺 WHEN/当/若）/\n  AMBIGUOUS（歧义词）/ATTRIBUTE_UNADDRESSED（治理属性语料未提及）为 warning。\n  error → exit 1；需求目录无文件 → exit 3。配置：harness.json spec.requirementDirs。\nspec view [--paths a,b|--all] [--budget 6000]\n  预算化需求摘要：--paths 只显追溯引用落在这些路径上的需求；无参默认当前变更面；\n  每条 = id + 标题行 + 测试验证 yes/no；预算外省略逐条显式点名。`,
   trace: `trace\n  需求→测试追溯门禁：声明集来自 spec lint；扫描 tracked ∪ 未跟踪（exclude-standard）\n  ≤512KB 文本文件里的 id 引用。≥1 个测试文件（spec.testGlobs）引用 = VERIFIED。\n  coverage = verified/declared 必须 ≥ spec.minCoverage（默认 1.0）；代码/测试引用\n  未声明 id = 悬空（失败）；文档悬空只报告。对称规则：只扫 REQ/NFR 两个声明族。\n  失败 exit 1；非 git → exit 3。`,
   'rules-audit': `rules-audit [--files a,b]（默认 AGENTS.md）\n  规则行（编号/子弹/表格行，≥25 字符，代码围栏外）分类：backtick token 能解析到\n  matrix check id / 引擎动词 / fitness 规则 id = ENFORCED；行/段声明 提示词|prompt-only|(P)\n  = declared-prompt-only；其余 = UNENFORCED 发现。默认纯建议恒 exit 0；\n  harness.json rulesAudit.maxUnenforced 设数字后超限 exit 1。报告执法率。`,
-  'skills-lint': `skills-lint\n  .kimi-code/skills/*/SKILL.md 契约：name kebab-case 且 == 目录名；description 必填、\n  >500 字符 error、>220 warning；正文 >24KB warning；重名 error。error → exit 1。`,
+  'skills-lint': `skills-lint\n  .kimi-code/skills/*/SKILL.md 契约：name kebab-case 且 == 目录名；description 必填、\n  >500 字符 error、>220 warning；正文 >24KB warning；重名 error；对话型 skill（内置清单）\n  缺「对话示例」/「反例」节 warning（REQ-075 坡道）。error → exit 1。`,
   'agents-lint': `agents-lint\n  根 AGENTS.md 必须存在（缺失 error）；>12000 字节 warning（每次请求全额重发）；\n  >16000 字节 error。error → exit 1。`,
   dod: `dod\n  Definition of Done 静态电池（子进程跑真实 CLI，定义唯一事实源 = lib/hygiene.mjs DOD_STEPS）：\n  catalog lint → skills-lint → agents-lint → spec lint → adr check → fitness --all（全仓）\n  → trace → receipt verify → arch check。每步归级 PASS/FAIL/DEGRADED（1/2=FAIL、\n  3=DEGRADED、4=STALE 按 FAIL 计）。任一 FAIL → exit 2；无 FAIL 但有 DEGRADED → exit 3\n  （降级响亮报告，绝不静默）；全 PASS → 0。pre-push 钩子与 CI 的第二/三道闸。`,
   selftest: `selftest\n  运行时自身冒烟：哈希/指纹/回执往返/分类器样例/原子写/frontmatter/import 提取。`
@@ -183,7 +189,7 @@ function firstVerbToken(argv) {
 }
 
 // 契约查表单源：strength（REQ-052）契约单列于 STRENGTH_CONTRACT（CONTRACTS 键集被 REQ-056
-// 现状表行为测试锁定为 39 dispatch verb + help）。所有查表必须走本函数——直接查 CONTRACTS
+// 现状表行为测试锁定为 40 dispatch verb + help）。所有查表必须走本函数——直接查 CONTRACTS
 // 会让 strength 的契约校验整体旁路（P3 评审 D4）。
 function contractOf(verb) {
   return CONTRACTS[verb] ?? (verb === 'strength' ? STRENGTH_CONTRACT : undefined);
@@ -300,7 +306,7 @@ async function dispatchStrength(ctx, sub, flags) {
 async function dispatchCommand(argv) {
   const verb = firstVerbToken(argv);
   // strength（REQ-052）契约单列于 STRENGTH_CONTRACT：CONTRACTS 键集被 REQ-056 现状表
-  // 行为测试锁定（39 dispatch verb + help），校验/解析派生方式与契约条目完全一致。
+  // 行为测试锁定（40 dispatch verb + help），校验/解析派生方式与契约条目完全一致。
   const contract = verb ? contractOf(verb) : undefined;
   const valueFlags = new Set([...VALUE_FLAG_NAMES_GLOBAL, ...Object.entries(contract?.flags ?? {}).filter(([, spec]) => spec.kind === 'value').map(([name]) => name)]);
   const { positional, flags, duplicates, emptyValues } = parseCliArgs(argv, { valueFlags });
@@ -1017,6 +1023,89 @@ async function dispatchCommand(argv) {
           : `阻断项：${result.blockers.join('、')}——先修复再谈发布。`
       ]);
       return result.ready ? 0 : 2;
+    }
+    case 'feedback': {
+      const ctx = await needProject();
+      if (sub === 'record') {
+        const result = await recordFeedback(ctx, { topic: flags.topic, type: flags.type, description: flags.description });
+        printResult(`feedback 已${result.created ? '记录' : '去重合并'}`, [
+          `条目：${result.path}`,
+          `occurrences：${result.occurrences}${result.created ? '' : '（同主题去重 +1）'}；索引：.kimi-base/feedback/FEEDBACK-INDEX.md（机器维护）`,
+          ...result.warnings.map((warning) => `warning ${warning}`)
+        ]);
+        return 0;
+      }
+      if (sub === 'list') {
+        const result = await listFeedback(ctx);
+        if (!result.count) {
+          printResult('feedback list：无条目', ['.kimi-base/feedback 为空或不存在（共 0 条）；记录入口：feedback record --topic <主题> --type <五类之一> --description <描述>', ...result.warnings.map((warning) => `warning ${warning}`)]);
+          return 0;
+        }
+        printResult(`feedback list（${result.count} 条）`, [
+          ...result.entries.map((entry) =>
+            `- topic=${entry.topic} type=${entry.type} occurrences=${entry.occurrences} graduated=${entry.graduated} skipped=${entry.skipped} updated=${entry.updated ?? '-'}${entry.template ? '（示例模板）' : ''}`),
+          ...result.warnings.map((warning) => `warning ${warning}`)
+        ]);
+        return 0;
+      }
+      if (sub === 'scan') {
+        const result = await scanFeedback(ctx);
+        const lines = [`扫描条目 ${result.scanned} 个（graduated/skipped 不计入候选面）`];
+        if (result.graduation.length) {
+          lines.push('毕业候选（occurrences≥3，未毕业未跳过）：');
+          for (const entry of result.graduation) lines.push(`- [候选] ${entry.topic} type=${entry.type} occurrences=${entry.occurrences} — 证据：${entry.file}`);
+        }
+        if (result.clusters.length) {
+          lines.push('聚类候选（同失败模式 type 跨 ≥3 个主题）：');
+          for (const cluster of result.clusters) lines.push(`- [聚类] type=${cluster.type} 跨 ${cluster.topics.length} 个主题：${cluster.topics.join(', ')}`);
+        }
+        if (result.newSkills.length) {
+          lines.push('新 skill 候选（repeated-operation 且 occurrences≥5，无 Skill 覆盖信号）：');
+          for (const entry of result.newSkills) lines.push(`- [新 skill 候选] ${entry.topic} occurrences=${entry.occurrences} — 证据：${entry.file}`);
+        }
+        if (!result.graduation.length && !result.clusters.length && !result.newSkills.length) lines.push('无候选（全部条目未达阈值或已 graduated/skipped）');
+        lines.push(...result.warnings.map((warning) => `warning ${warning}`));
+        printResult('feedback scan（不改任何规则与有效条目；损坏条目隔离并警告）', lines);
+        return 0;
+      }
+      if (sub === 'propose') {
+        if (flags.skip !== undefined) {
+          if (flags.skip === true) throw usageError('feedback propose --skip 需要 topic 值（--skip <topic>）');
+          const skipped = await skipFeedback(ctx, String(flags.skip));
+          printResult('feedback 已标记 skipped', [
+            `条目：${skipped.path}（skipped:true；之后 scan/propose 不再报该主题）`,
+            ...skipped.warnings.map((warning) => `warning ${warning}`)
+          ]);
+          return 0;
+        }
+        const result = await proposeFeedback(ctx);
+        const lines = [
+          '目标层优先级：可执行 check > fitness 规则 > skill 步骤 > AGENTS.md 散文（check 不开火零成本，散文每请求都付费）',
+          '机制红线：引擎永不自动改规则——以下均为提议（proposal），落地恒需人工确认'
+        ];
+        if (!result.proposals.length) {
+          lines.push('无候选可提议（先跑 feedback scan 查看候选面）');
+        }
+        lines.push(...result.warnings.map((warning) => `warning ${warning}`));
+        let index = 0;
+        for (const proposal of result.proposals) {
+          index += 1;
+          if (proposal.cluster) {
+            lines.push(
+              `提议 ${index} [聚类] type=${proposal.type} 跨 ${proposal.topics.length} 个主题：${proposal.topics.join(', ')}`,
+              `  目标层：${proposal.layer}——${proposal.hint}`
+            );
+          } else {
+            lines.push(
+              `提议 ${index} [毕业候选${proposal.newSkill ? '＋新 skill 候选' : ''}] feedback id=${proposal.topic} type=${proposal.type} occurrences=${proposal.occurrences} 证据=${proposal.file}`,
+              `  目标层：${proposal.layer}——${proposal.hint}`
+            );
+          }
+        }
+        printResult('feedback propose（结构化提议，未落盘任何规则）', lines);
+        return 0;
+      }
+      throw usageError(`未知 feedback 子命令：${sub ?? '<缺>'}（record/list/scan/propose）`);
     }
     case 'selftest': {
       const result = await selftestCommand();

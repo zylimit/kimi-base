@@ -99,7 +99,7 @@ P10 eval+总收尾 ◄── P9 CI/发布面 ◄── P8 反馈分层+采用阶
 | P4 ✅ | Receipt v2 绑定面（REQ-053）+ fast 贷款账本（REQ-054）+ 可提交证据模式（REQ-055） | receipt-v2 26/26；run-tests 285/285；评审五轮 10 error 全修复；verdict ACCEPT rcpt-20260907183718 |
 | P11（插队，用户 2026-09-08 指令） | 沟通桥梁层（REQ-069~075，ADR-0012，设计 docs/COMMUNICATION-LAYER.md）：认知标注四态+spec lint 检查 / 业务含义过链（派单第七字段+回流通道）/ 交互深度四档 / psb 方法层重写 / 记忆依据链+纠正三段式 / 阶段专业化 / skill 工艺与去重 | 各 REQ 验收行；真实情境前后对比检验 |
 | P5 | 评审强化（REQ-057）：authorship 账本接线、静态发现入 review-pack、review 消费策略轴 | review 测试组全绿 |
-| P6 | feedback 引擎化（REQ-058）：record/scan/propose、聚类毕业、人确认落地、载荷纳入 | feedback 测试组全绿 |
+| P6 ✅ | feedback 引擎化（REQ-058）：record/scan/propose、聚类毕业、人确认落地、载荷纳入 | feedback 测试组 20/20 全绿；cli-contracts 17/17（扩表 40+help）；摘 planned(P6) |
 | P7 | 宪法瘦身（REQ-059：AGENTS.md 地图化 ≤6000 字节）+ 修复指令体（REQ-060）+ quarantine 原语（REQ-061） | rules-audit 阈值保持 0；gate/dod nextStep 100% |
 | P8 | 三层反馈分级（REQ-062）+ 渐进采用阶梯（REQ-063）+ 棘轮持久化（REQ-064）+ 安装器锁与 marker（REQ-065）+ 压缩边界诚实降级文档（F2 结论落地） | init/arch/install 测试组全绿 |
 | P9 | CI 模板扩展（GitLab 变体+定时空跑+汇总判定）+ release 接入强度 floor | 模板测试 + release 测试组全绿 |

@@ -92,18 +92,36 @@ Fast Mode（`node .kimi-base/runtime/kimi-base.mjs fast on|off|status`）下不�
 - 当前 fingerprint 的验证命令、退出状态和 evidence 可核查。
 - 未验证、降级、环境限制和人工检查明确列出。
 
+## 反合理化清单（偷懒话术 → 应对）
+
+Agent 容易用"合理"的理由跳过纪律。以下话术一出现，按右列应对：
+
+**跳过编排**：
+
+- 「这个很简单，直接写就行」→ Plan 不看复杂度看纪律：派单包七字段照写，implementer 照派。
+- 「就改一个文件，不用派子代理」→ 唯一编排是铁律：主 Agent 不亲手写代码，一个文件也走派单。
+- 「用户在等，先写再说」→ 5 分钟派单省 30 分钟返工；fresh 实例的上下文隔离正是质量来源。
+
+**跳过验证**：
+
+- 「我刚测过这个」→ 验证时效性铁律：声明同轮重跑；diff 变了旧 receipt 作废。
+- 「编译通过就说明没问题」→ 编译通过 ≠ 功能正常，四步走每步都要。
+- 「这个改动不可能出错」→ 不可能出错的改动最容易出错，跑 `gate` 拿回执。
+- 「结构 validate 过了 / 子代理自报 DONE」→ 都不算质量通过，只有绑定当前指纹的 gate 回执算。
+
+**模糊派单 / 软性完成**：
+
+- 「实现时再想细节」→ 派单阶段写死目标/边界/验证，不给 fresh 实例留自由发挥的缝。
+- 「添加必要的错误处理」→ 指明处理哪些错误、各自什么行为。
+- 「应该没问题了」「大概率通过」→ 禁止词；「没问题」需要当场跑出来的证据。
+
+**吞需求矛盾**：
+
+- 「Spec 这么写，照做就行，矛盾不归我管」→ 不替需求做发明：业务上说不通就停手上报（`DONE_WITH_CONCERNS` / `NEEDS_CONTEXT`），回流 product-spec-builder。
+
 ## 回执
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed:
-Verified:
-Not verified:
-Needs review by:
-Evidence:
-```
-
-不得用「应该没问题」「之前跑过」替代当前证据。
+回执信封六字段（Status 四态与字段语义）定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节。
 
 ## 初始化
 

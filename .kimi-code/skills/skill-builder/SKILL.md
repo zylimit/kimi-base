@@ -32,7 +32,7 @@ whenToUse: 当用户要求创建、修改 Skill，或进化引擎的新 Skill �
 
 **复制处理显式（copy treatment 分级）**：外部内容逐项标为 `vendored_intact`（原样搬入）/ `vendored_modified`（改后搬入，注明改了什么）/ `synthesized`（消化后重写）/ `referenced_only`（只引用不复制）/ `excluded`（明确排除及原因）。许可证未知/不兼容、包含密钥/会话/运行态/隐藏安装行为的内容默认不复制。
 
-**联网优先**：新 Skill 涉及不熟悉的领域，先 WebSearch 了解该领域最佳实践和常见问题，再设计维度清单和策略。
+**联网优先**（规则单源：`.kimi-base/rules/workflow.md`「联网优先」节）：本 skill 的触发场景 = 新 Skill 涉及不熟悉的领域（先查该领域最佳实践与常见问题，再设计维度清单和策略）。
 
 ## Kimi 原生格式（硬约束）
 

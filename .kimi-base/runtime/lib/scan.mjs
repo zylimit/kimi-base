@@ -395,7 +395,7 @@ export const ENGINE_VERBS = new Set([
   'receipt', 'review', 'fast', 'risk', 'gate-audit', 'retention', 'hook',
   'init-modules', 'selftest', 'help',
   'recap', 'invariants', 'archive', 'sync-check', 'spec', 'trace', 'rules-audit',
-  'skills-lint', 'agents-lint'
+  'skills-lint', 'agents-lint', 'feedback'
 ]);
 
 const RULE_LINE = /^\s*(?:\d+\.|-|\|)\s+\S/;
@@ -495,6 +495,21 @@ const DESCRIPTION_ERROR_CHARS = 500;
 const DESCRIPTION_WARN_CHARS = 220;
 const SKILL_WARN_BYTES = 24 * 1024;
 
+// 对话型 skill 清单（REQ-075，ADR-0012）的机器可读出处：以「与用户多轮对话形成
+// 判断/规格」为核心交付的 skill（对照执行型：以命令与文件产出为核心交付）。
+// 清单描述的是框架自带 16 个载荷 skill 的固有属性，跟随引擎版本维护，故内置为
+// 常量而非配置——放 harness.json 会让采纳者能关掉对自己资产口径的约束，语义不通。
+// 命中清单的 skill 必须自带「对话示例」节（标题含"示例"）与「反例」节（标题含
+// "反例"或"常见错误"）；缺失只报 warning 不 error——给存量与第三方 skill 留迁移
+// 坡道，工艺债不应阻断功能违例的拦截面。
+const DIALOGUE_SKILLS = new Set([
+  'product-spec-builder', 'arch-designer', 'dfx-designer',
+  'dev-planner', 'bug-fixer', 'code-review'
+]);
+const SKILL_HEADING = /^#{2,6}\s+(.+?)\s*$/;
+const EXAMPLE_HEADING = /示例/;
+const ANTIPATTERN_HEADING = /反例|常见错误/;
+
 export async function skillsLint(ctx) {
   const skillsRoot = path.join(ctx.root, '.kimi-code', 'skills');
   const entries = await readdir(skillsRoot, { withFileTypes: true }).catch((error) => {
@@ -537,6 +552,29 @@ export async function skillsLint(ctx) {
     }
     const bytes = Buffer.byteLength(text, 'utf8');
     if (bytes > SKILL_WARN_BYTES) findings.push({ file: rel, severity: 'warning', code: 'SKILL_LARGE', message: `skill 体积 ${bytes} 字节（>${SKILL_WARN_BYTES}），加载即全额付费；细节移到 references/ 并链接` });
+    if (DIALOGUE_SKILLS.has(entry.name)) {
+      // 标题收集豁免代码围栏（FENCE 状态机与 lintCognitionLabels 同形态）：围栏内是引用/
+      // 模板片段，其中的 `## 对话示例` 不算 skill 自己具备该节（评审实证：模板引用会放行缺节 skill）。
+      const headings = [];
+      let fence = null;
+      for (const line of normalizeLf(text).split('\n')) {
+        const fenceMatch = FENCE.exec(line);
+        if (fenceMatch) {
+          if (!fence) fence = { char: fenceMatch[1][0], length: fenceMatch[1].length };
+          else if (fenceMatch[1][0] === fence.char && fenceMatch[1].length >= fence.length) fence = null;
+          continue;
+        }
+        if (fence) continue;
+        const heading = SKILL_HEADING.exec(line);
+        if (heading) headings.push(heading[1]);
+      }
+      if (!headings.some((heading) => EXAMPLE_HEADING.test(heading))) {
+        findings.push({ file: rel, severity: 'warning', code: 'SKILL_NO_EXAMPLES', message: `对话型 skill ${entry.name} 缺「对话示例」节（标题含"示例"）；knowing-but-not-showing 实证：无示例的工艺约束会被模型自觉绕过（REQ-075）` });
+      }
+      if (!headings.some((heading) => ANTIPATTERN_HEADING.test(heading))) {
+        findings.push({ file: rel, severity: 'warning', code: 'SKILL_NO_ANTIPATTERNS', message: `对话型 skill ${entry.name} 缺「反例」节（标题含"反例"或"常见错误"）；只写该做什么不写常见错法，等于把失败模式留给自由发挥（REQ-075）` });
+      }
+    }
     skills.push({ name: meta.name ?? entry.name, dir: entry.name, bytes });
   }
   const names = skills.map((skill) => skill.name);

@@ -52,16 +52,12 @@ subagents: []
 
 支撑主 Agent「翻证据外包、下判断自留」：**回传 = 结论 + 证据句柄**（产物路径 / digest / 时间戳 / 端点响应位置），不贴大段构建日志。
 
-回传以**回执信封六字段**开头：
+回传以**回执信封六字段**开头（骨架与字段语义定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节），本角色填充口径：
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed: <产物清单：包/镜像/脚本及路径 + 版本号变更>
-Verified: <发布前全量验证结果 + 部署后三件套证据>
-Not verified: <未验证项>
-Needs review by: <主 Agent 独立核查三件套>
-Evidence: <artifact 路径/digest、镜像 tag、容器创建时间戳、健康检查响应、冒烟结果、回滚入口>
-```
+- `Changed`：产物清单（包/镜像/脚本及路径 + 版本号变更）
+- `Verified`：发布前全量验证结果 + 部署后三件套证据
+- `Needs review by`：主 Agent 独立核查三件套
+- `Evidence`：artifact 路径/digest、镜像 tag、容器创建时间戳、健康检查响应、冒烟结果、回滚入口
 
 ## 交接声明
 

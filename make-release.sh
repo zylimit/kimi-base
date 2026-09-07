@@ -1,7 +1,8 @@
 #!/bin/sh
 # kimi-base 发布打包（POSIX sh）
 # 以 package.json 的 files 清单为发布面做 git archive（维护面 tests/progress 等不进包）；
-# 剔除运行时状态/私密 feedback/旁路文件；打完对包内容跑泄漏扫描，命中即非零退出。
+# 剔除运行时状态/私密 feedback 条目（机制面 FEEDBACK-INDEX.md 与 feedback/templates/ 保留，
+# 承 installer isStableAsset 白名单口径）/旁路文件；打完对包内容跑泄漏扫描，命中即非零退出。
 # 用法：sh make-release.sh [输出目录]
 set -eu
 
@@ -48,13 +49,21 @@ TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo ">> git archive 打包中（发布面 = package.json files）..."
-# pathspec 剔除：运行时状态、私密 feedback、旁路与临时文件
+# pathspec 剔除：运行时状态、私密 feedback、旁路与临时文件。
+# 私密 feedback = tracked 的 feedback/ 下、白名单（FEEDBACK-INDEX.md 与 templates/）之外的条目
+# （与 installer isStableAsset 同口径）；机制面（INDEX + 示例模板）保留进发布包（ADR-0010）。
+# topic 文件名由引擎归一化为 kebab-case（无空格/引号），按词拆分安全。
+PRIVATE_FEEDBACK=$(git -C "$SCRIPT_DIR" ls-files | grep -E '(^|/)feedback/' | grep -v -E '/feedback/(FEEDBACK-INDEX\.md|templates/)' || true)
+EXCLUDES=""
+for f in $PRIVATE_FEEDBACK; do
+  EXCLUDES="$EXCLUDES :(exclude)$f"
+done
 # shellcheck disable=SC2086
 git -C "$SCRIPT_DIR" archive --format=zip -o "$TMP_DIR/$PKG" HEAD -- \
   $FILES \
   ':(exclude)**/.kimi-base/state/**' \
   ':(exclude)**/*.kimi-base-new*' \
-  ':(exclude)**/feedback/**' \
+  $EXCLUDES \
   ':(exclude)**/*.tmp' \
   ':(exclude)**/*.log'
 
@@ -79,8 +88,8 @@ scan "token" '(sk|pk|rk|sess)-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[
 scan "私钥" 'BEGIN [A-Z ]*PRIVATE KEY-----'
 scan "个人路径" '/(Users|home)/[A-Za-z0-9._-]+/|[A-Za-z]:\\Users\\'
 
-# 禁入面复核：包内不得出现运行时状态/旁路/私密 feedback
-FORBIDDEN=$(cd "$TMP_DIR/x" && find . \( -path '*/.kimi-base/state/*' -o -name '*.kimi-base-new*' \) -print 2>/dev/null | grep -v 'state/\.gitignore' || true)
+# 禁入面复核：包内不得出现运行时状态/旁路/私密 feedback（白名单外条目）
+FORBIDDEN=$(cd "$TMP_DIR/x" && find . \( -path '*/.kimi-base/state/*' -o -name '*.kimi-base-new*' -o \( -path '*/feedback/*' -type f ! -name 'FEEDBACK-INDEX.md' ! -path '*/feedback/templates/*' \) \) -print 2>/dev/null | grep -v 'state/\.gitignore' || true)
 if [ -n "$FORBIDDEN" ]; then
   echo "包内含禁入文件：" >&2
   echo "$FORBIDDEN" >&2

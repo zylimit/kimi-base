@@ -35,7 +35,7 @@
     },
     {
       "name": "payload-assets",
-      "paths": [".kimi-base/rules/**", ".kimi-base/templates/**", ".kimi-base/*.json", ".kimi-base/state.README", ".kimi-base/githooks/**"],
+      "paths": [".kimi-base/rules/**", ".kimi-base/templates/**", ".kimi-base/*.json", ".kimi-base/state.README", ".kimi-base/githooks/**", ".kimi-base/feedback/**"],
       "layer": "assets",
       "dependsOn": [],
       "forbiddenDependencies": ["engine", "plugin", "tests", "skills-agents"],

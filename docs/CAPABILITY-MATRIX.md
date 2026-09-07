@@ -11,7 +11,7 @@
 | 防递归派发 | frontmatter `subagents: []` | 全部角色叶子化，编排权只在主 Agent |
 | 只读审查隔离 | frontmatter `disallowedTools` | code-reviewer/researcher 禁 Write/Edit |
 | 工作流固化 | .kimi-code/skills/*/SKILL.md | 16 个工作流 skill（需求/DFX/架构/计划/开发/审查/测试/修缺/发布/记忆/反馈/进化/红蓝/收尾/大仓/skill 工程） |
-| 会话启动路由 | 插件 sessionStart.skill | kimi-base skill：标记检测→横幅→路由表；非标记项目自静默 |
+| 会话启动路由 | 插件 sessionStart.skill | kimi-base skill：标记检测→横幅→路由（路由表单源 `.kimi-base/rules/intent-routing.md`）；非标记项目自静默 |
 | 危险命令拦截 | PreToolUse hook（exit 2） | 语义化分类器：wrapper 穿透/凭据跨管道外发/git 破坏性子命令 |
 | 写前对账 | PreToolUse(Write\|Edit) hook | ownedPaths 哈希基线；越界写（仓外/.git/敏感文件）拦截 |
 | 完成门 | Stop hook（exit 2 + 回注） | 缺 fresh receipt 或三文件未同步→拦；连拦 3 次保险丝放行 |

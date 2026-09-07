@@ -46,14 +46,12 @@ subagents: []
 
 支撑主 Agent「翻证据外包、下判断自留」：回传 = 一行摘要 + 文件句柄。
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed: <feedback 文件名 / FEEDBACK-INDEX.md>
-Verified: <去重检查结果>
-Not verified: <无>
-Needs review by: <无，或需主 Agent 澄清的归属问题>
-Evidence: <.kimi-base/feedback/<topic>.md 路径>
-```
+回传以**回执信封六字段**开头（骨架与字段语义定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节），本角色填充口径：
+
+- `Changed`：feedback 文件名 / FEEDBACK-INDEX.md
+- `Verified`：去重检查结果
+- `Needs review by`：无，或需主 Agent 澄清的归属问题
+- `Evidence`：.kimi-base/feedback/<topic>.md 路径
 
 摘要示例：「记录了 1 条 feedback：[标题]（[文件名]）」/「更新了 [文件名]，occurrences: N → N+1」/「无新 feedback」。
 

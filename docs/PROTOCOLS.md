@@ -325,7 +325,7 @@ error → exit 1；需求目录无文件 → exit 3。
 
 ### 14.2 skills-lint
 
-`.kimi-code/skills/*/SKILL.md`：frontmatter 缺失/坏形状 error；name 非 kebab-case 或 ≠ 目录名 error；description 缺失 error、>500 字符 error、>220 warning；正文 >24KB warning；重名 error。error → exit 1。
+`.kimi-code/skills/*/SKILL.md`：frontmatter 缺失/坏形状 error；name 非 kebab-case 或 ≠ 目录名 error；description 缺失 error、>500 字符 error、>220 warning；正文 >24KB warning；重名 error；对话型 skill（内置清单：product-spec-builder / arch-designer / dfx-designer / dev-planner / bug-fixer / code-review，REQ-075）缺「对话示例」节（标题含"示例"）或「反例」节（标题含"反例"/"常见错误"）warning 不阻断。error → exit 1。
 
 ### 14.3 agents-lint
 

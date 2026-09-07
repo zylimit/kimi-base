@@ -1,6 +1,6 @@
 # kimi-base Product Spec
 
-版本：v3.1.0 · 状态：v3.0 重构进行中（P0-P4 已交付；P5-P10 工程面与 P11 软层并行推进） · 变更史见 `Product-Spec-CHANGELOG.md`
+版本：v3.1.2 · 状态：v3.0 重构进行中（P0-P4、P6 已交付；P5、P7-P10 工程面与 P11 软层并行推进） · 变更史见 `Product-Spec-CHANGELOG.md`
 
 ## 1. 定位
 
@@ -155,7 +155,6 @@
   状态：planned(P5)
   验收：review 测试组（作者自审拒 ACCEPT/无数据诚实标注/静态发现在证据包内）全绿。
 - REQ-058 feedback 引擎化：当执行 `feedback record/scan/propose` 时，引擎必须机器维护 occurrences 与 FEEDBACK-INDEX（同主题去重）；scan 必须检出毕业候选（单条 occurrences≥3、同失败模式跨文件 3+、无覆盖模式 5+）；propose 必须按"可执行 check > fitness 规则 > skill 步骤 > AGENTS.md 散文"优先级给结构化提议且永不自动改规则；被拒提议必须记 skipped 不再重复提议。
-  状态：planned(P6)
   验收：feedback 测试组（计数去重/三档聚类候选/优先级排序/skipped 不重复/零自动落地）全绿。
 - REQ-059 宪法瘦身与执法率门禁：当 rules-audit 配置 maxUnenforced 阈值时，无执法规则超阈必须 exit 1；根 AGENTS.md 必须保持"地图非手册"形态（不变量+指针，细则下沉 .kimi-base/rules/），体积不得超 6000 字节。
   状态：planned(P7)
@@ -191,10 +190,8 @@
 - REQ-069 认知标注四态：当 Product-Spec 含"现状与假设"节时，其条款必须标 `[确认]`（用户确认的事实+来源）/`[推断]`（AI 推断+依据）/`[建议]`（AI 提议+理由）/`[未知]`（未知项+确认途径）之一；未标条款按推断论处；spec lint 必须对标签形态违规（推断无依据/未知无确认途径）报 error（exit 1）。
   验收：tests/spec.test.mjs「认知标注四态」用例组（合法四态 exit 0/无依据推断 SPEC_LABEL_NO_BASIS/无途径未知 SPEC_LABEL_NO_VERIFY_PATH/未标 SPEC_UNLABELED warning/无该节零影响）全绿（红测先行于实现）。
 - REQ-070 业务含义过链：当 REQ 条目声明动机与受益人字段时，派单包必须携带第七字段"业务上下文"（主 Agent 从 Spec 抄录，fresh 实例不得猜测）；code-review/bug-fixer/test-builder 发现需求存疑时必须有回流 product-spec-builder 迭代模式的显式通道，反例必须进 Spec"规则与例外"节。
-  状态：planned(P11)
   验收：派单契约测试（七字段齐备）+ 回流通道行为测试全绿。
 - REQ-071 交互深度四档：工作流必须定义直推/确认/探索/委托四档，判据=认知不确定性×做错代价；澄清记录必须持久化于 Spec"澄清记录"节，问过的不得再问；签字闸对直推档豁免、对探索档强制。
-  状态：planned(P11)
   验收：workflow 细则评审 + 四档分支的行为用例（直推不拦/委托不问/重问被拦）全绿。
 - REQ-072 psb 方法层：product-spec-builder 必须具备向人学业务四线（as-is 真实故事/受益受损者/规则与例外/决策历史）、答案解析器（弱化词→标推断要例子、"都要"→逼取舍、矛盾→并排摆出）、答案→下一步路由表、情境复述收敛（用用户的案例讲"那次会怎么走"）；收敛条件必须是未知清零+复述通过，维度清单只作覆盖检查。
   状态：planned(P11)
@@ -206,7 +203,6 @@
   状态：planned(P11)
   验收：三 skill 的字段级完备性检查（lint）+ 情境检验。
 - REQ-075 skill 工艺与去重：对话型 skill 必须各带 ≥2 个多轮对话示例与反例清单；执行型 skill 必须带反合理化清单（偷懒话术→应对）；回执信封/交接声明/意图路由表/联网优先等重复块必须下沉为单源定义各处引用。
-  状态：planned(P11)
   验收：skills-lint 扩展检查（示例/反例存在性）全绿 + 重复块消除前后 diff 审计。
 
 ## 6. 非功能需求

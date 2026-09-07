@@ -33,14 +33,7 @@ whenToUse: 当用户说收尾、合并分支、这个分支弄完了、提 PR，
 
 ## 回执
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed:
-Verified:
-Not verified:
-Needs review by:
-Evidence: <git status 输出位置 + 收尾清单逐项结论>
-```
+回执信封六字段（Status 四态与字段语义）定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节。本 skill 填充口径：`Evidence` 必须含 git status 输出位置 + 收尾清单逐项结论。
 
 ## 初始化
 

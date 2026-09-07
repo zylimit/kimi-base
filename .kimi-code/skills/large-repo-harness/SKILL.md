@@ -91,14 +91,7 @@ node .kimi-base/runtime/kimi-base.mjs quality status  # 证据账本与五性覆
 
 ## 回执
 
-```text
-Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
-Changed:
-Verified:
-Not verified:
-Needs review by:
-Evidence:
-```
+回执信封六字段（Status 四态与字段语义）定义见 `.kimi-base/rules/dispatch-contract.md`「回执信封六字段」节。
 
 ## 初始化
 

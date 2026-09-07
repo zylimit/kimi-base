@@ -23,3 +23,19 @@
 ## 交接声明（所有子代理统一适用）
 
 你的最后一条消息就是交付给主 Agent 的完整交接（Kimi 自定义子代理没有内置交接框架）：主 Agent 看不到你的中间过程，只能看到这最后一条消息——它必须自含全部结论与证据句柄。
+
+## 回执信封六字段
+
+子代理回传必须以回执信封开头。信封骨架与字段语义只在此定义；各 skill/agent 只补充本角色的填充口径，不重复定义骨架：
+
+```text
+Status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
+Changed: <新建/修改的文件列表>
+Verified: <已验证项，逐项附命令 + 退出码 + 关键输出>
+Not verified: <未验证项，诚实列出>
+Needs review by: <需要谁复核什么，及原因>
+Evidence: <证据句柄：路径 / 命令输出位置 / commit / 时间戳>
+```
+
+- **Status 四态**：DONE=干净完成；DONE_WITH_CONCERNS=完成但有顾虑（逐条列出）；NEEDS_CONTEXT=缺输入，点名缺哪项；BLOCKED=被环境/权限阻断。BLOCKED 是诚实不是失败。
+- 不得用「应该没问题」「之前跑过」替代当前证据；Evidence 必须绑定当前 diff 指纹。
