@@ -15,7 +15,7 @@ whenToUse: 当用户要求开始开发、继续当前 Phase/Task，或实现某�
 
 ## 前置
 
-必须存在：`Product-Spec.md`（已批准）、`DEV-PLAN.md`、当前 Task 的派单包六字段（Goal / Scope / Out of Scope / Existing Pattern / Verification / Escalation）。
+必须存在：`Product-Spec.md`（已批准）、`DEV-PLAN.md`、当前 Task 的派单包七字段（Goal / Scope / Out of Scope / Existing Pattern / Verification / Escalation / Business Context，单源定义见 `.kimi-base/rules/dispatch-contract.md`）。
 
 ADR、module capsule、module-catalog.json、现有测试和 CI 为可选输入；缺失时说明降级，不虚构要求。涉及外部 SDK/API/版本或陌生错误时先查官方资料，或交回主 Agent 派 researcher。
 
@@ -53,6 +53,7 @@ node .kimi-base/runtime/kimi-base.mjs context pack
 - 行为变化处理相应错误、空状态、边界、权限、事务或并发路径。
 - 新增/升级依赖、迁移数据、切换包管理器或 CI 规则必须先获授权。
 - 未授权时不 commit、push、tag、publish、deploy、建远程仓库、终止进程或修改机器配置。
+- **持续核对业务含义（REQ-070）**：实现过程中对照派单包 Business Context（为什么做 / 谁受益 / 规则与例外）核对方向。发现实现与业务含义矛盾、或发现 Spec 未覆盖的反例（业务上说不通、与场景冲突）时**停手上报**：回 `DONE_WITH_CONCERNS` / `NEEDS_CONTEXT` 写明反例与证据，交主 Agent 回流 product-spec-builder 迭代模式。**不替需求做发明**——不擅自"合理化"吞掉矛盾后继续写码。
 
 ### 4. 受影响验证
 

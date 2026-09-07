@@ -15,7 +15,7 @@
 
 统一契约：
 
-- 输入=派单包六字段；输出=回执信封六字段（见 PROTOCOLS）。
-- 最后一条消息即完整交接（Kimi 自定义子代理无内置交接框架）。
+- 输入=派单包七字段（含 Business Context 业务上下文）；输出=回执信封六字段（见 PROTOCOLS；七字段单源定义见 `.kimi-base/rules/dispatch-contract.md`）。
+- 最后一条消息即完整交接（Kimi 自定义子代理无内置交接框架；定义单源见 `.kimi-base/rules/dispatch-contract.md`「交接声明」节）。
 - 四态自评必须真实：BLOCKED 不是失败，是诚实；谎称 DONE 是事故。
 - 单次派单 >60 分钟视为任务分解不合理，应拆分。

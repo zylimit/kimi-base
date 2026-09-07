@@ -16,7 +16,7 @@ subagents: []
 你不替用户总结——基于主 Agent 提供的上下文，判断有没有值得记录的信号。
 没有信号就说没有，不强行制造 feedback。
 
-## 输入契约：派单包六字段
+## 输入契约：派单包七字段
 
 - **Goal**：记录什么（触发原因：用户说了什么——修正、反馈、意见）
 - **Scope**：你只允许写 `.kimi-base/feedback/` 下的文件（topic 文件 + FEEDBACK-INDEX.md）
@@ -24,6 +24,7 @@ subagents: []
 - **Existing Pattern**：当前正在执行的 Skill（或 N/A）、被修正的具体 AI 行为
 - **Verification**：写完后回读确认 frontmatter 合法（occurrences 已 +1 / 新文件索引已登记）
 - **Escalation**：信号归属不清时如何标注
+- **Business Context**：被修正行为发生在什么业务场景 / 涉及哪条 REQ（主 Agent 抄录或标「无」）——用于判断信号归属与评分维度
 
 ## 任务
 
@@ -58,4 +59,4 @@ Evidence: <.kimi-base/feedback/<topic>.md 路径>
 
 ## 交接声明
 
-你的最后一条消息就是交付给主 Agent 的完整交接（Kimi 自定义子代理没有内置交接框架）：主 Agent 看不到你的中间过程，只能看到这最后一条消息——它必须自含全部结论与证据句柄。
+见 `.kimi-base/rules/dispatch-contract.md`「交接声明」节：最后一条消息即完整交接，必须自含全部结论与证据句柄。

@@ -2,7 +2,7 @@
  * tests/spec.test.mjs
  * 需求可判定性与追溯（spec lint / trace / spec view）、rules-audit、skills-lint、agents-lint
  * 的契约测试 + 本仓资产锚点测试。
- * 追溯：REQ-033（spec/trace）REQ-034（rules-audit）REQ-035（skills/agents-lint）REQ-067（planned 生命周期标记）。
+ * 追溯：REQ-033（spec/trace）REQ-034（rules-audit）REQ-035（skills/agents-lint）REQ-067（planned 生命周期标记）REQ-069（认知标注四态）。
  *
  * 运行：node --test tests/spec.test.mjs
  *
@@ -547,5 +547,327 @@ describe('需求生命周期标记 planned', RT, () => {
     assert.equal(r.code, 1, out(r));
     assert.match(r.stdout, new RegExp(`未被测试引用的需求：[^\\n]*${reqId(406)}`), out(r));
     assert.doesNotMatch(r.stdout, new RegExp(`未被测试引用的需求：[^\\n]*${reqId(407)}`), out(r));
+  });
+});
+
+// ---------------- 认知标注四态（REQ-069，ADR-0012） ----------------
+
+describe('认知标注四态', RT, () => {
+  // 夹具条款正文刻意避开 spec lint 其他规则雷区：不含占位词（TBD/待补充等）、
+  // 不含歧义词表词条；条款均在 REQ 块之外，不受可判定性检查影响。
+
+  test('二级标题「现状与假设」节内合法四态（含数字条款与 fence 豁免）→ exit 0 无 SPEC_ 告警', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '- [确认] 目标平台为 Linux，来源为 2026-09-01 用户访谈纪要。',
+        '1. [推断] 团队规模在十人以内，依据：仓库近一年提交者名单共七人。',
+        '- [建议] 首版只交付只读视图，理由是降低首发风险。',
+        '- [未知] 结算币种规则未明，确认：由财务负责人在评审会答复。',
+        '',
+        '```',
+        '- 示例片段里的无标签列表行不构成条款（fence 豁免）',
+        '```',
+        '',
+        '## 需求清单',
+        '',
+        reqEntry(reqId(501)),
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SPEC_UNLABELED|SPEC_LABEL_NO_BASIS|SPEC_LABEL_NO_VERIFY_PATH/, out(r));
+  });
+
+  test('三级标题「现状与假设」节内 [推断] 条款无依据 → SPEC_LABEL_NO_BASIS exit 1', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '### 现状与假设',
+        '',
+        '- [推断] 团队偏好异步评审而非会议评审。',
+        '',
+        reqEntry(reqId(502)),
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, /SPEC_LABEL_NO_BASIS/, out(r));
+  });
+
+  test('[未知] 条款无确认途径 → SPEC_LABEL_NO_VERIFY_PATH exit 1', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '- [未知] 第三方计费接口的限流策略尚不明朗。',
+        '',
+        reqEntry(reqId(503)),
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, /SPEC_LABEL_NO_VERIFY_PATH/, out(r));
+  });
+
+  test('未标条款按推断论处 → exit 0 但有 SPEC_UNLABELED warning；下一同级标题结束检查面', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '- 部署频率目前大约每周一次。',
+        '',
+        '## 需求清单',
+        '',
+        '- 节外的无标签列表行不构成现状与假设条款。',
+        '',
+        reqEntry(reqId(504)),
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    const hits = r.stdout.match(/SPEC_UNLABELED/g) ?? [];
+    assert.equal(hits.length, 1, `节外列表行不得计入：\n${out(r)}`);
+  });
+
+  test('无「现状与假设」节 → 不检查，exit 0 零 SPEC_ 输出（存量零回归）', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': `# 需求\n\n${reqEntry(reqId(505))}\n\n${ATTRIBUTES_LINE}\n`,
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SPEC_UNLABELED|SPEC_LABEL_/, out(r));
+  });
+});
+
+// ---------------- 认知标注四态·评审修复（REQ-069 第二轮，红蓝评审 FIX_REQUIRED 驱动） ----------------
+
+describe('认知标注四态·评审修复', RT, () => {
+  test('标签 token 自包含不算确认途径：[未知] 条款的"确认"只来自 [确认] 标签本身 → SPEC_LABEL_NO_VERIFY_PATH exit 1', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        // 「确认」二字只出现在 [确认] 标签 token 内；剥离标签后条款无任何确认途径
+        '- [未知] 结算币种规则未明，本节另有[确认]条款演示标签形态。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, /SPEC_LABEL_NO_VERIFY_PATH/, out(r));
+  });
+
+  test('URL 里的"依据："不豁免推断条款：依据判定前先剥离 URL → SPEC_LABEL_NO_BASIS exit 1', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '- [推断] 会话超时时长约三十分钟，详见 https://example.com/wiki/依据：session 页面。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, /SPEC_LABEL_NO_BASIS/, out(r));
+  });
+
+  test('同条款 ≥2 个认知标签 → SPEC_LABEL_MULTI error exit 1（恰好一个，多标签等于没表态）', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '- [确认] [推断] 团队规模为七人，依据：近一年提交者名单。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, /SPEC_LABEL_MULTI/, out(r));
+  });
+
+  test('~~~ 波浪 fence 与 ``` 同等豁免：fence 内无标签列表行不触发 SPEC_UNLABELED', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '~~~',
+        '- 波浪 fence 内的无标签列表演示行不构成条款',
+        '~~~',
+        '',
+        '- [确认] 目标平台为 Linux，来源为 2026-09-01 用户访谈纪要。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SPEC_UNLABELED/, out(r));
+  });
+
+  test('节标题精确匹配：「## 附录：现状与假设标注规则」是提及不是开节，其内条款不检查', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 附录：现状与假设标注规则',
+        '',
+        '- 本节说明标签用法，不是现状与假设节，此处的无标签列表行不受检查。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SPEC_UNLABELED/, out(r));
+  });
+});
+
+// ---------------- 认知标注四态·终审修复（REQ-069 第三轮，终审 FIX_REQUIRED 驱动） ----------------
+
+describe('认知标注四态·终审修复', RT, () => {
+  test('带节号前缀的标题（## 3. 现状与假设（认知标注），模板形态）必须开节并检查', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 3. 现状与假设（认知标注）',
+        '',
+        '- [推断] 团队偏好异步评审而非会议评审。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, /SPEC_LABEL_NO_BASIS/, out(r));
+  });
+
+  test('URL 后接全角逗号与真依据不误报：「参考 https://x，依据：…」exit 0 零 SPEC_ 输出', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '- [推断] 重试上限为三次，参考 https://example.com/retry-policy，依据：SRE 访谈记录。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SPEC_LABEL_NO_BASIS|SPEC_UNLABELED/, out(r));
+  });
+
+  test('「确认率」裸子串不算确认途径：确认途径须结构化（确认：/由…确认/确认途径）', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '- [未知] 确认率待提升。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, /SPEC_LABEL_NO_VERIFY_PATH/, out(r));
+  });
+
+  test('fence 混用：``` 开 ~~~ 闭不关节（fence 内无标签行不误报）', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '```',
+        '- 反引号 fence 内的无标签行',
+        '~~~',
+        '- 波浪行不关反引号 fence，此行仍在 fence 内',
+        '```',
+        '',
+        '- [确认] 目标平台为 Linux，来源为 2026-09-01 用户访谈纪要。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SPEC_UNLABELED/, out(r));
+  });
+
+  test('fence 长度：~~~~ 内嵌 ``` 不误关（闭 fence 必须同字符且长度 ≥ 开）', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '~~~~',
+        '```',
+        '- 四波浪 fence 内嵌三反引号，此行仍在 fence 内',
+        '~~~~',
+        '',
+        '- [确认] 目标平台为 Linux，来源为 2026-09-01 用户访谈纪要。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SPEC_UNLABELED/, out(r));
+  });
+});
+
+// ---------------- 认知标注四态·确认途径口径放宽（REQ-069 第四轮，终审 warning 驱动） ----------------
+
+describe('认知标注四态·确认途径口径', RT, () => {
+  test('责任方+场合齐备的确认途径（由…答复）不报 error：「由财务负责人在评审会答复」exit 0', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '- [未知] 结算币种规则，由财务负责人在评审会答复。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.doesNotMatch(r.stdout, /SPEC_LABEL_NO_VERIFY_PATH/, out(r));
+  });
+
+  test('放宽不赦免裸子串：「确认率待提升」仍报 SPEC_LABEL_NO_VERIFY_PATH（回归锁）', (t) => {
+    const dir = specFixture(t, {
+      'specs/a.md': [
+        '# 需求',
+        '',
+        '## 现状与假设',
+        '',
+        '- [未知] 确认率待提升。',
+        '',
+      ].join('\n'),
+    });
+    const r = run(['spec', 'lint'], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    assert.match(r.stdout, /SPEC_LABEL_NO_VERIFY_PATH/, out(r));
   });
 });

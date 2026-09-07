@@ -1,6 +1,6 @@
 # PROTOCOLS：字段级协议
 
-## 1. 派单包（主 Agent → 子代理，六字段）
+## 1. 派单包（主 Agent → 子代理，七字段）
 
 ```
 Goal: 要达成什么（可判定）
@@ -9,7 +9,10 @@ Out of Scope: 明确不碰什么
 Existing Pattern: 应遵循的现有模式/文件指针
 Verification: 验收命令（具体可执行）
 Escalation: 什么情况升级回主 Agent
+Business Context: 为什么做 / 谁受益 / 相关规则与例外
 ```
+
+Business Context 由主 Agent 从 Product-Spec 抄录 REQ 的动机/受益人字段原文，fresh 实例不许猜；无 Spec 的小任务可标「无」并说明。单源定义见 `.kimi-base/rules/dispatch-contract.md`。
 
 ## 2. 回执信封（子代理 → 主 Agent，六字段）
 

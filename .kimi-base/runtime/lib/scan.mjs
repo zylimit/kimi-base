@@ -45,6 +45,71 @@ const BLOCK_LINES = 14; // 一个需求的"块" = id 所在行起 14 行
 const PLANNED_SEEN = /状态：\s*planned/;
 const PLANNED_PHASE = /状态：\s*planned[（(]\s*(P[0-9A-Za-z.]+)\s*[)）]/;
 
+// 认知标注四态（REQ-069，ADR-0012）：「现状与假设」节（二/三级标题）内每个列表条款
+// 必须恰好携带一个认知标签——[确认]/[推断]/[建议]/[未知]；推断必须带依据、
+// 未知必须带确认途径；未标条款按推断论处（warning 坡道，不拦存量迁移）。
+// 节标题口径（精确匹配）：标题文字可带可选节号前缀（"3. "），主体以「现状与假设」
+// 开头且其后为边界字符（空白/括号/冒号/破折号/行尾）才开节——「## 附录：现状与假设
+// 标注规则」这类提及性标题不是节；节号形态与 .kimi-base/templates/Product-Spec.md 对齐。
+// 形态检查在剥离标签 token 与 URL 后的正文上进行：标签名自带"确认"、引文 URL 可能
+// 携带"依据："，都不算条款自己的确认途径/依据。URL 终止于空白与中文句读
+// （，。；、！？），尾字符须为 URL 合法收尾——尾部 ASCII 句读回收进正文；URL 内部的
+// CJK 与全角冒号属引用内容（页名可能带"依据："），照常剥离。
+// 已知边界（info 级，不修）：行文提及标签本身（如「详见 [确认] 标签的用法说明」）在
+// 节内列表行会被误判为已标——标签 token 辨识度高，误报面可接受。
+const COGNITION_HEADING = /^(#{2,3})\s+(?:\d+[.、．]\s*)?现状与假设(?=[\s（(：:—–-]|$)/;
+const ANY_HEADING = /^(#{1,6})\s+/;
+// fence 开闭记字符与长度：闭 fence 必须同字符且长度 ≥ 开（``` 内嵌 ~~~ 不关节）。
+const FENCE = /^\s*(`{3,}|~{3,})/;
+const COGNITION_LABELS = ['[确认]', '[推断]', '[建议]', '[未知]'];
+const COGNITION_ITEM = /^\s*(?:-|\d+[.、)])\s*\S/;
+const COGNITION_BASIS = /依据[:：]/;
+// 已知残余面（不修）：URL query/页名里藏 CJK 依据（如 "https://x/?q=依据：foo"）时依据随
+// URL 一起被剥离、NO_BASIS 漏报——剥离策略的固有方向，宁可漏报不误报（反向误报会把
+// "URL 后接真依据"的合规条款打红，见 T2 形态）。
+const COGNITION_URL = /https?:\/\/[^\s，。；、！？]*[A-Za-z0-9/#_~-]/g;
+// 确认途径结构化判定（剥离标签后的正文）："确认："直接形态 / "由|待|请|找…
+// （确认|答复|回复|拍板|定论|给出）"责任方形态 / 显式"确认途径"字样——
+// 「确认率」这类裸子串不算。
+const VERIFY_PATH = /(?:由|待|请|找)[^，。；]{0,20}(?:确认|答复|回复|拍板|定论|给出)|确认[：:（(]|确认途径/;
+
+function lintCognitionLabels(file, lines, findings) {
+  let sectionLevel = 0;
+  let fence = null; // 开 fence 的 { char, length }；null = 不在 fence 内
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const fenceMatch = FENCE.exec(line);
+    if (fenceMatch) {
+      if (!fence) fence = { char: fenceMatch[1][0], length: fenceMatch[1].length };
+      else if (fenceMatch[1][0] === fence.char && fenceMatch[1].length >= fence.length) fence = null;
+      continue;
+    }
+    if (fence) continue;
+    const heading = ANY_HEADING.exec(line);
+    if (heading) {
+      if (sectionLevel && heading[1].length <= sectionLevel) sectionLevel = 0;
+      if (!sectionLevel && COGNITION_HEADING.test(line)) sectionLevel = heading[1].length;
+      continue;
+    }
+    if (!sectionLevel || !COGNITION_ITEM.test(line)) continue;
+    const labels = COGNITION_LABELS.filter((label) => line.includes(label));
+    if (!labels.length) {
+      findings.push({ file, line: index + 1, severity: 'warning', code: 'SPEC_UNLABELED', message: '现状与假设条款未标认知标签（[确认]/[推断]/[建议]/[未知]）；未标按推断论处——补标以结束迁移坡道' });
+      continue;
+    }
+    if (labels.length > 1) {
+      findings.push({ file, line: index + 1, severity: 'error', code: 'SPEC_LABEL_MULTI', message: `条款携带 ${labels.length} 个认知标签（${labels.join(' ')}）；必须恰好一个——多标签等于没表态` });
+    }
+    const content = COGNITION_LABELS.reduce((text, label) => text.split(label).join(''), line).replace(COGNITION_URL, '');
+    if (line.includes('[推断]') && !COGNITION_BASIS.test(content)) {
+      findings.push({ file, line: index + 1, severity: 'error', code: 'SPEC_LABEL_NO_BASIS', message: '[推断] 条款必须含依据（依据：…）；无依据的推断是猜测伪装成事实' });
+    }
+    if (line.includes('[未知]') && !VERIFY_PATH.test(content)) {
+      findings.push({ file, line: index + 1, severity: 'error', code: 'SPEC_LABEL_NO_VERIFY_PATH', message: '[未知] 条款必须含确认途径（确认：… 或「由/待/请/找…确认/答复/拍板」责任方形态）；没有确认途径的未知会永远悬着' });
+    }
+  }
+}
+
 /** requirementDirs 条目既可以是 .md 文件也可以是目录（目录递归取 *.md）。 */
 async function requirementFiles(ctx) {
   const files = [];
@@ -89,6 +154,7 @@ export async function specLint(ctx) {
         findings.push({ file, line: index + 1, severity: 'error', code: 'PLACEHOLDER', message: `需求文档含占位符 "${placeholder}"；写了一半的需求比没有更糟` });
       }
     }
+    lintCognitionLabels(file, lines, findings);
     for (let index = 0; index < lines.length; index += 1) {
       const match = REQ_ID.exec(lines[index]);
       if (!match) continue;

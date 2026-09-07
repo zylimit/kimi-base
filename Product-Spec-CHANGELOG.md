@@ -10,6 +10,7 @@
 
 - 新增「v3.0 沟通桥梁层」小节：REQ-069 认知标注四态 / REQ-070 业务含义过链（派单第七字段+需求存疑回流）/ REQ-071 交互深度四档 / REQ-072 psb 方法层 / REQ-073 记忆依据链与纠正三段式 / REQ-074 阶段专业化 / REQ-075 skill 工艺与去重，全部 planned(P11)。
 - P4 激活：REQ-053/054/055 摘 planned 标记（Receipt v2 绑定面/fast 证据贷款账本/可提交证据模式，验收 tests/receipt-v2.test.mjs 26 用例全绿）。
+- REQ-069 落地并摘 planned(P11) 标记：spec lint 增认知标注四态检查（lib/scan.mjs lintCognitionLabels——「现状与假设」二/三级节内列表条款标签形态校验，推断无依据 SPEC_LABEL_NO_BASIS、未知无确认途径 SPEC_LABEL_NO_VERIFY_PATH 为 error，未标 SPEC_UNLABELED 为 warning 坡道，fence 豁免）；验收 tests/spec.test.mjs「认知标注四态」5 用例全绿（红测先行）。
 - 版本号 v3.0.3 → v3.1.0。
 
 ## v3.0.3（2026-09-07）P4 激活：REQ-053/054/055 Receipt v2 与贷款账本

@@ -15,7 +15,7 @@
 
 ## 二、派单与回执
 
-- 派单包六字段：Goal / Scope / Out of Scope / Existing Pattern / Verification / Escalation。
+- 派单包七字段：Goal / Scope / Out of Scope / Existing Pattern / Verification / Escalation / Business Context（业务上下文，主 Agent 从 Product-Spec 抄录 REQ 动机与受益人，fresh 实例不许猜；单源定义见 `.kimi-base/rules/dispatch-contract.md`）。
 - 回执信封六字段：Status / Changed / Verified / Not verified / Needs review by / Evidence。
 - 四态自评：DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED；BLOCKED 是诚实不是失败。
 - 单次派单 >60 分钟 = 任务分解不合理，先拆再派。

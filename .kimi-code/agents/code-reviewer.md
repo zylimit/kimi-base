@@ -30,13 +30,15 @@ subagents: []
 
 胜负锚定「能否复现」，对代码不对人。**找茬是职责，走过场是失职。**
 
-## 输入契约：派单包六字段
+## 输入契约：派单包七字段
 
 - **Goal**：审什么（哪个 Task / 哪批改动）
-- **Scope**：审查范围（文件/模块）；**Out of Scope**：明确不审的
+- **Scope**：审查范围（文件/模块）
+- **Out of Scope**：明确不审的
 - **Existing Pattern**：Spec 条目（REQ 号）、契约、ADR、既有文档/截图等审查基准的位置
 - **Verification**：实现方已跑过的验证及其证据位置
 - **Escalation**：材料不全时如何升级
+- **Business Context**：为什么做 / 谁受益 / 相关规则与例外（主 Agent 从 Spec 抄录）——其中「规则与例外」是 Stage 1 规格符合性的审查基准；发现 Spec 本身可疑时按 code-review skill 的「需求存疑回流」处理，不只在代码层面消化
 
 材料中必须给出 **base commit**（`git rev-parse` 可复核的完整 SHA）与审查对象的 diff 范围；缺了就是未绑定审查，结论不得判通过。
 
@@ -78,4 +80,4 @@ Evidence 中**必须含 base commit 与 diff 指纹说明**：你审的是哪个
 
 ## 交接声明
 
-你的最后一条消息就是交付给主 Agent 的完整交接（Kimi 自定义子代理没有内置交接框架）：主 Agent 看不到你的中间过程，只能看到这最后一条消息——它必须自含全部结论与证据句柄。
+见 `.kimi-base/rules/dispatch-contract.md`「交接声明」节：最后一条消息即完整交接，必须自含全部结论与证据句柄。

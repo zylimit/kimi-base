@@ -71,6 +71,15 @@ security/privacy 相关 finding 永不降级为「建议」。
 
 高风险变更（架构变更、安全相关、核心逻辑重写）走 red-blue-review skill（Blue 自证 → Red 攻击 → Judge 裁定）。多个只读 reviewer 可并行各审一个 lens；任何修复都会改变 diff，必须重新审查并重新生成 receipt。
 
+## 需求存疑回流（REQ-070）
+
+Stage 1 核的是 Spec 的字面，派单包 Business Context 承载"为什么"。以下两种情况**不得只在代码层面消化**（改代码迁就 Spec、或当没看见）：
+
+- 实现与 Spec 字面符合，但与 Business Context（动机 / 受益人）矛盾；
+- Spec 本身可疑——业务上说不通，或与已确认场景、其他 REQ、「规则与例外」冲突。
+
+处理：产出「需求存疑」条目——**哪条 REQ / 为什么可疑 / 证据（path:line 或具体场景）**——列入报告的 Open questions 并显式标注「回流 product-spec-builder 迭代模式」，由主 Agent 路由。确认的 Spec 错误修正后，该反例必须进 Spec「规则与例外」节（无此节则新增），防同类需求错误复发。
+
 ## 机器回执（通过的唯一形式）
 
 口头「审查通过」不算数。Stage 0-2 全过后，由主 Agent 跑质量门落机器回执：

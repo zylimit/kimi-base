@@ -189,8 +189,7 @@
 ### v3.0 沟通桥梁层（软层重构，ADR-0012，设计取证见 docs/COMMUNICATION-LAYER.md）
 
 - REQ-069 认知标注四态：当 Product-Spec 含"现状与假设"节时，其条款必须标 `[确认]`（用户确认的事实+来源）/`[推断]`（AI 推断+依据）/`[建议]`（AI 提议+理由）/`[未知]`（未知项+确认途径）之一；未标条款按推断论处；spec lint 必须对标签形态违规（推断无依据/未知无确认途径）报 error（exit 1）。
-  状态：planned(P11)
-  验收：spec lint 认知标注用例组（合法四态 exit 0/无依据推断/无途径未知/未标条款各红）全绿。
+  验收：tests/spec.test.mjs「认知标注四态」用例组（合法四态 exit 0/无依据推断 SPEC_LABEL_NO_BASIS/无途径未知 SPEC_LABEL_NO_VERIFY_PATH/未标 SPEC_UNLABELED warning/无该节零影响）全绿（红测先行于实现）。
 - REQ-070 业务含义过链：当 REQ 条目声明动机与受益人字段时，派单包必须携带第七字段"业务上下文"（主 Agent 从 Spec 抄录，fresh 实例不得猜测）；code-review/bug-fixer/test-builder 发现需求存疑时必须有回流 product-spec-builder 迭代模式的显式通道，反例必须进 Spec"规则与例外"节。
   状态：planned(P11)
   验收：派单契约测试（七字段齐备）+ 回流通道行为测试全绿。

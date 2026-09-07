@@ -42,7 +42,7 @@
 | supervisor 开发态守护（退避/探针/熔断/只杀自己拉的） | pi/opencode/cc | runtime/supervisor.mjs（REQ-025） |
 | skill description lint（禁流程摘要词） | codex/pi/cc | doctor frontmatter 校验 |
 | 防黑屏发行级 workaround 精神（踩坑→根因→固化） | opencode-base | 发行纪律本身 |
-| 写测独立 / red-locks-the-bug / 验收五步闸 / 派单包六字段 / 回执信封六字段 | 家族共识 | skills + agents 正文契约 |
+| 写测独立 / red-locks-the-bug / 验收五步闸 / 派单包七字段 / 回执信封六字段 | 家族共识 | skills + agents 正文契约 |
 
 ## 拒绝清单（含理由）
 

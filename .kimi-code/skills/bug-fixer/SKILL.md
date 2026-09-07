@@ -18,7 +18,7 @@ whenToUse: 当用户报告 bug、功能异常、编译/运行时错误，或 rev
 - 期望行为与实际行为
 - 最小复现、错误日志或失败测试
 - 影响版本/环境
-- 派单包六字段（Goal / Scope / Out of Scope / Existing Pattern / Verification / Escalation）
+- 派单包七字段（含 Business Context 业务上下文，定义见 `.kimi-base/rules/dispatch-contract.md`）
 
 关键信息不足时返回 `NEEDS_CONTEXT`，不要猜。
 
@@ -41,6 +41,10 @@ whenToUse: 当用户报告 bug、功能异常、编译/运行时错误，或 rev
 7. **最小修复**（implementer）：修根因，不做邻近重构，不新增静默 fallback。依赖、迁移、公共契约变化先取得授权。
 8. **回归验证**：先重跑红测确认变绿，再重跑原始复现，最后 `node .kimi-base/runtime/kimi-base.mjs gate`。代码变化后旧 evidence 为 stale。
 9. **复审闭环**：派 code-reviewer 复审（红→修绿→复审，缺一环不算完）。
+
+## 需求存疑回流（REQ-070）
+
+五问第 5 条追问到流程/契约层时，若根因落在 **Spec 本身**（业务上说不通、与场景或其他 REQ 冲突），不得只在代码层面消化：产出「需求存疑」条目——**哪条 REQ / 为什么可疑 / 复现证据**——写入回执 `Needs review by` 并显式标注「回流 product-spec-builder 迭代模式」，由主 Agent 路由；修复是否继续由主 Agent 呈用户定夺。确认的 Spec 错误修正后，反例进 Spec「规则与例外」节（无此节则新增）；本单红测转绿后锚定该例外条目，作永久回归。
 
 ## 进程与环境
 
