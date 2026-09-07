@@ -1,5 +1,17 @@
 # Product Spec 变更日志
 
+## v3.0.2（2026-09-07）P3 激活：REQ-051/052 强度策略引擎
+
+### 为什么改
+
+P3 完成，强度策略引擎落地（resolver/四内置档 12 轴/extends 只收紧/floor 只升不降/shadow/decision log/policyHash/strength 动词族/task complete completionMode 执法），按 REQ-067 机制摘除两条 planned 标记。
+
+### 变更
+
+- REQ-051（强度策略引擎）、REQ-052（strength 动词族）摘 planned(P3) 标记，验收 tests/strength.test.mjs 28 用例全绿。
+- 种子新增 `.kimi-base/templates/strength.example.json`（install 缺省落地为 .kimi-base/strength.json，upgrade 永不覆盖）。
+- 版本号 v3.0.1 → v3.0.2。
+
 ## v3.0.1（2026-09-04）P2 激活：REQ-056 CLI 契约注册表 / REQ-068 discover 健壮性
 
 ### 为什么改

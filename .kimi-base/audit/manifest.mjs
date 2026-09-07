@@ -23,6 +23,7 @@ const SEEDS = [
   ['.kimi-base/harness.example.json', '.kimi-base/harness.json'],
   ['.kimi-base/module-catalog.example.json', '.kimi-base/module-catalog.json'],
   ['.kimi-base/verification-matrix.example.json', '.kimi-base/verification-matrix.json'],
+  ['.kimi-base/templates/strength.example.json', '.kimi-base/strength.json'],
   ['.kimi-base/templates/AGENTS.md', 'AGENTS.md']
 ];
 const MANIFEST = 'FRAMEWORK-MANIFEST.json';

@@ -8,6 +8,7 @@ export const CATALOG_REL = '.kimi-base/module-catalog.json';
 export const MATRIX_REL = '.kimi-base/verification-matrix.json';
 export const ARCH_BASELINE_REL = '.kimi-base/arch-baseline.json';
 export const ADAPTERS_REL = '.kimi-base/adapters.json';
+export const STRENGTH_CONFIG_REL = '.kimi-base/strength.json';
 
 export const LEDGER_FILE = 'ledger.jsonl';
 export const TASKS_FILE = 'tasks.json';
@@ -16,6 +17,8 @@ export const WAIVERS_FILE = 'waivers.json';
 export const ARCH_TREND_FILE = 'arch-trend.json';
 export const REVIEW_SESSION_FILE = 'review/session.json';
 export const REVIEW_BACKLOG_FILE = 'review-backlog.json';
+export const STRENGTH_STATE_FILE = 'strength.json';
+export const STRENGTH_DECISIONS_FILE = 'strength-decisions.jsonl';
 
 export const INSTALL_MANIFEST_REL = `${STATE_DIR}/install-manifest.json`;
 export const INSTALL_RECEIPT_REL = `${STATE_DIR}/install-receipt.json`;

@@ -35,11 +35,11 @@ AI 结对编程在大型仓库上的典型失控模式：需求没问清就开�
    .kimi-code/agents/*.md        8 个专职角色
    .kimi-code/skills/*/SKILL.md  16 个工作流
    .kimi-base/
-    ├─ runtime/                  治理引擎（薄入口 kimi-base.mjs + lib/ 31 模块 + supervisor.mjs，零依赖）
+    ├─ runtime/                  治理引擎（薄入口 kimi-base.mjs + lib/ 33 模块 + supervisor.mjs，零依赖）
     ├─ audit/                    5 个独立审计脚本（禁 import 引擎，双实现防共谋）
     ├─ githooks/                 pre-commit / pre-push / commit-msg（第二道闸）
     ├─ rules/                    下沉细则 · templates/ 文档与 CI 模板
-    ├─ harness.example.json 等    三配置种子（缺失才落地，永不覆盖）
+    ├─ harness.example.json 等    四配置种子（缺失才落地，永不覆盖）
     ├─ harness.json 等            本仓自用治理配置（永不进安装面）
     └─ state/                    运行态（git-ignored）：任务账本/回执/账本链/评审会话
 ```
@@ -74,11 +74,11 @@ node <kimi-base 仓库>/.kimi-base/runtime/kimi-base.mjs install . --hooks
 
 ## 治理引擎命令速查
 
-`node .kimi-base/runtime/kimi-base.mjs <verb>`（40 个动词含 help；退出码契约 v2：0 干净 / 1 用法·违例 / 2 阻断 / 3 降级 / 4 陈旧）
+`node .kimi-base/runtime/kimi-base.mjs <verb>`（41 个动词含 help；退出码契约 v2：0 干净 / 1 用法·违例 / 2 阻断 / 3 降级 / 4 陈旧）
 
 | 组 | 命令 | 作用 |
 | --- | --- | --- |
-| 任务与证据 | `task start/status/complete` · `gate` · `quality status/waiver` · `receipt verify` · `fast on/off` | 任务账本；四态质量门出 diff 绑定回执；五性覆盖判定（反证压过佐证）；账本哈希链校验；限时旁路（protected 免疫，借账不能关闭 task） |
+| 任务与证据 | `task start/status/complete` · `gate` · `quality status/waiver` · `receipt verify` · `fast on/off` · `strength list/status/set/explain` | 任务账本；四态质量门出 diff 绑定回执；五性覆盖判定（反证压过佐证）；账本哈希链校验；限时旁路（protected 免疫，借账不能关闭 task）；强度策略引擎（四档×12 轴、extends 只收紧、floor 只升不降、shadow 迁移） |
 | 架构防腐 | `catalog lint/discover` · `arch check/baseline/trend` · `adr check` · `fitness` · `cochange` · `budget` | 路径归属；真实 import 边对账声明图 + 逐指标历史最优棘轮；ADR 幽灵引用；五规则文本扫描；git 历史共变耦合；变更预算门 |
 | 评审 | `review pack/start/blue/lens/verdict/status/team/backlog` | 结构化对抗评审：九 lens 三阶段，计算裁决，终审 ACCEPT 才写回执，backlog 持久 |
 | 需求与记忆 | `spec lint/view` · `trace` · `recap` · `invariants` · `archive` · `sync-check` · `rules-audit` | 需求可判定性 lint；REQ↔代码/测试追溯门；派生式恢复视图；铁律注入；归档；三文件同步执法；宪法执法率审计 |

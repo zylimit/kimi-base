@@ -83,6 +83,15 @@ node .kimi-base/runtime/kimi-base.mjs review verdict --reviewer main # 计算裁
 
 - `fast on [小时数]` / `fast off` / `fast status`：限时旁路（默认 24h），仅跳过声明 `allowFastSkip:true` 的非保护检查；每次 skip 留痕；security/safety/privacy 免疫（kind 或认领属性任一命中即受保护）。**fast 是借账不是折扣**：带 `fastWindow` 印记的 SKIPPED 不能关闭 task（完成门记缺口），也不能通过 release（fast-debt-repaid 拦截）；还债路径唯一——`fast off` 后重跑完整 `gate`。
 
+## 6.1 强度策略（strength，REQ-051/052，ADR-0008）
+
+- `strength list`：四内置档（explore/rapid/balanced/strict）与自定义档逐轴生效值；无 `.kimi-base/strength.json` 也 exit 0（内置档客观存在）。
+- `strength status`：当前生效档（`strength.json` 的 profile，`strength set` 的 state 覆盖优先）+ 12 轴生效值 + policyHash + rollout；无配置 → exit 3（治理未开启）。
+- `strength set --profile <档名>`：写 `.kimi-base/state/strength.json` 覆盖当前档；未知档名 exit 1 列合法集。
+- `strength explain [--risk R] [--operation O] [--paths a,b]`：逐轴标注来源（builtin/extends/floor:risk/floor:operation/floor:attribute/floor:path）。floor 只升不降、多 floor 冲突逐轴取最高：risk（low→rapid / medium→balanced / high·critical→strict）、operation（develop→rapid / complete→balanced / package·release·deploy→strict）、`--paths` 命中治理面 `.kimi-base/**` 或信任边界（auth/security/secrets 路径段）→strict、受影响模块声明 security/safety/privacy @ high+ →strict。
+- 配置契约：自定义档 `extends` 具名档逐轴只收紧，降级配置期报 `STRENGTH_WEAKENING` exit 1；未知轴/未知 extends/非法轴值/非法 rollout 均 exit 1 点名。`rollout: shadow` 只报告不阻断（status 响亮标注）；`enforce` 且生效档 completionMode=forbidden 时 `task complete` exit 2 点名。
+- 每次解析写有界 decision log（≤200 条，`.kimi-base/state/strength-decisions.jsonl`，字段 policyRevision/inputDigest/reasons）。种子：`.kimi-base/templates/strength.example.json`（install 缺省落地，默认 rollout=shadow 平滑接入）。
+
 ## 7. 风险与卫生
 
 - `risk scan`：状态腐化/死锁残留/stale 基线/脏树。

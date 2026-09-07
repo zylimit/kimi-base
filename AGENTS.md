@@ -4,7 +4,7 @@
 
 ## 布局铁律
 
-1. 载荷即 `.kimi-base/`（runtime/rules/templates/audit/githooks/adapters/三个 example 种子）+ `.kimi-code/`。改任何载荷文件后必须同 commit 重新生成 `FRAMEWORK-MANIFEST.json`（`npm run manifest`），否则 `manifest --check` 红。
+1. 载荷即 `.kimi-base/`（runtime/rules/templates/audit/githooks/adapters/example 种子）+ `.kimi-code/`。改任何载荷文件后必须同 commit 重新生成 `FRAMEWORK-MANIFEST.json`（`npm run manifest`），否则 `manifest --check` 红。
 2. `.kimi-base/{harness,module-catalog,verification-matrix}.json` 是本仓**自用**治理配置，永不进安装面；安装面只发 `*.example.json` 种子（缺失才落地，永不覆盖）——`pack-check` 执法。
 3. `.kimi-base/state/` 是运行态，git-ignored，任何断言不得依赖其残留——`pack-check` 把 state 混入发布面判红。
 4. 不写第二套 Agent runtime；不修改 Kimi Code 内核；hooks 是护栏不是沙箱（提示词纪律）。

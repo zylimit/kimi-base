@@ -41,6 +41,9 @@ export const SEED_ENTRIES = [
   { source: '.kimi-base/harness.example.json', path: '.kimi-base/harness.json' },
   { source: '.kimi-base/module-catalog.example.json', path: '.kimi-base/module-catalog.json' },
   { source: '.kimi-base/verification-matrix.example.json', path: '.kimi-base/verification-matrix.json' },
+  // 强度策略种子（REQ-051/052）：源放 templates/ 受管目录（同 AGENTS.md 先例），
+  // 默认 rollout=shadow——已安装项目平滑接入，改 enforce 才启用执法。
+  { source: '.kimi-base/templates/strength.example.json', path: '.kimi-base/strength.json' },
   { source: '.kimi-base/templates/AGENTS.md', path: 'AGENTS.md' }
 ];
 
@@ -68,7 +71,7 @@ export function isStableAsset(relativePath) {
   const value = toPosix(relativePath);
   if (!value || value.includes('../')) return false;
   if (/(?:^|\/)\.kimi-base\/state\//.test(value)) return false;
-  if (['.kimi-base/harness.json', '.kimi-base/module-catalog.json', '.kimi-base/verification-matrix.json'].includes(value)) return false;
+  if (['.kimi-base/harness.json', '.kimi-base/module-catalog.json', '.kimi-base/verification-matrix.json', '.kimi-base/strength.json'].includes(value)) return false;
   if (/\.kimi-base-new(?:-.*)?$/.test(value)) return false;
   if (/(?:\.tmp|\.temp|\.log|\.bak)$/.test(value)) return false;
   if (/(?:^|\/)\.DS_Store$/.test(value) || /(?:^|\/)Thumbs\.db$/.test(value)) return false;

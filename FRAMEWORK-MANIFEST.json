@@ -18,8 +18,8 @@
     {
       "path": ".kimi-base/audit/manifest.mjs",
       "source": ".kimi-base/audit/manifest.mjs",
-      "sha256": "928ad154f9efe638383e903215efa3c2c0d383cc559a58fd5b1ddf738f3bcd2a",
-      "bytes": 6951
+      "sha256": "b8d0090aabbde91e4d50312c43bd8ac85425c051f92215895e0d321d3a09e2d9",
+      "bytes": 7029
     },
     {
       "path": ".kimi-base/audit/run-tests.mjs",
@@ -146,14 +146,14 @@
     {
       "path": ".kimi-base/runtime/lib/cli-contracts.mjs",
       "source": ".kimi-base/runtime/lib/cli-contracts.mjs",
-      "sha256": "f1363cba1a28b686384b61aa3ab51a6db6eb1912685154d8d66471162459aff7",
-      "bytes": 6874
+      "sha256": "debc2ce272ecb1fc7c59307205f5758fe3b1bf2189d801fd03cb0b5af06ecfa1",
+      "bytes": 7596
     },
     {
       "path": ".kimi-base/runtime/lib/cli.mjs",
       "source": ".kimi-base/runtime/lib/cli.mjs",
-      "sha256": "6f4ed52f28068e4aecd2530fae1b0bade19654843d0e83a9d9ad9ede4ef3f599",
-      "bytes": 74405
+      "sha256": "2af1b07504bebb3819e0e45ae30911d11c2244cf27900e29beeecf5acac34b1a",
+      "bytes": 80709
     },
     {
       "path": ".kimi-base/runtime/lib/cochange.mjs",
@@ -230,8 +230,8 @@
     {
       "path": ".kimi-base/runtime/lib/installer.mjs",
       "source": ".kimi-base/runtime/lib/installer.mjs",
-      "sha256": "d83d89d7f187064391f587d00d810c71c57f6176ead1634e91d328942e37b3c3",
-      "bytes": 27600
+      "sha256": "da8dedb861039c5926facdc8017d1412a68ce8038d14299d6f24e32d6eb979e8",
+      "bytes": 27918
     },
     {
       "path": ".kimi-base/runtime/lib/ledger.mjs",
@@ -254,8 +254,8 @@
     {
       "path": ".kimi-base/runtime/lib/paths.mjs",
       "source": ".kimi-base/runtime/lib/paths.mjs",
-      "sha256": "665a309772306ef3c1a360c57115052fa4285e4b35b3958727cdb765729bceb2",
-      "bytes": 985
+      "sha256": "1b4dbbebfa51fa1e63c00028b4987f9a8579bb44ea4fe9c93e94bc9ffe3a1037",
+      "bytes": 1167
     },
     {
       "path": ".kimi-base/runtime/lib/quality.mjs",
@@ -284,14 +284,20 @@
     {
       "path": ".kimi-base/runtime/lib/selftest.mjs",
       "source": ".kimi-base/runtime/lib/selftest.mjs",
-      "sha256": "bacfe2957d76dd02759465394010a0b4217b1b2d745108cd12da0dfb775b44b9",
-      "bytes": 12395
+      "sha256": "10931fcfb3c5ffce8245dd6b06839a69b6e2b05624cd5d4fe3b7df2cb29ae58e",
+      "bytes": 15252
     },
     {
       "path": ".kimi-base/runtime/lib/state.mjs",
       "source": ".kimi-base/runtime/lib/state.mjs",
       "sha256": "65f83f5ed26c415f8960d93f3d134aae500ebb2ec0ad80ae1892caef67b2314e",
       "bytes": 5074
+    },
+    {
+      "path": ".kimi-base/runtime/lib/strength.mjs",
+      "source": ".kimi-base/runtime/lib/strength.mjs",
+      "sha256": "83805a4bf1b5d84b21c779104055335fc8fe7ff252a86b9a5b762dccdbfb1ba3",
+      "bytes": 19860
     },
     {
       "path": ".kimi-base/runtime/lib/tasks.mjs",
@@ -316,6 +322,13 @@
       "source": ".kimi-base/state.README",
       "sha256": "26b966e9a1e0102f480fd0e3dbb5027fb3eb44365bb2194c2f554a5cf3690523",
       "bytes": 199
+    },
+    {
+      "path": ".kimi-base/strength.json",
+      "source": ".kimi-base/templates/strength.example.json",
+      "sha256": "210b982471b8e437703e8cbe7a782d7da6e4fe3d367812acd329051e17f1d773",
+      "bytes": 980,
+      "seed": true
     },
     {
       "path": ".kimi-base/templates/ADR.md",
@@ -394,6 +407,12 @@
       "source": ".kimi-base/templates/PROJECT-MAP.md",
       "sha256": "2cf2aa02c7d8db325a42fb3469c1aa155487d7626bdebd9cd7551f2f275cc695",
       "bytes": 900
+    },
+    {
+      "path": ".kimi-base/templates/strength.example.json",
+      "source": ".kimi-base/templates/strength.example.json",
+      "sha256": "210b982471b8e437703e8cbe7a782d7da6e4fe3d367812acd329051e17f1d773",
+      "bytes": 980
     },
     {
       "path": ".kimi-base/verification-matrix.example.json",
@@ -584,5 +603,5 @@
       "seed": true
     }
   ],
-  "digest": "98860302bbc30c061638c2a522c5b42cf00b0ed5ff202718bbf9c91c05c895db"
+  "digest": "ee7d25f8b5d5da3e9e3ffea30dfe5f0d74502305735b072990aa7d9222b91918"
 }

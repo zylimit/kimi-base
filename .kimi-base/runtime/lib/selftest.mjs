@@ -13,6 +13,7 @@ import { atomicWrite, contentHashOf, normalizeLf, redactSecrets, runProcess, sha
 import { runFitness } from './fitness.mjs';
 import { gitFingerprint } from './git.mjs';
 import { CHAIN_GENESIS, chainLink, verifyLedgerChain } from './ledger.mjs';
+import { AXES, BUILTIN_PROFILES, PROFILE_ORDER, attributeFloorProfile, axisRank, mergeFloor, resolveProfiles } from './strength.mjs';
 
 export async function selftestCommand() {
   const results = [];
@@ -194,6 +195,50 @@ export async function selftestCommand() {
       && moduleForSpecifier({ modules: [ambCatalog.modules[0]] }, 'src/b/x.js')?.id === 'ts-owner'
       && moduleForSpecifier({ modules: [ambCatalog.modules[1]] }, 'src/b/y.js') === null,
     '并存归 js-owner；仅 ts 时改写归 ts-owner；无对应文件保持 null');
+  // 17. strength 策略引擎（REQ-051）：内置四档逐轴单调（explore≤rapid≤balanced≤strict）。
+  let monotone = true;
+  const monotoneFailures = [];
+  for (const axis of AXES) {
+    for (let index = 1; index < PROFILE_ORDER.length; index += 1) {
+      const prev = axisRank(axis, BUILTIN_PROFILES[PROFILE_ORDER[index - 1]][axis]);
+      const curr = axisRank(axis, BUILTIN_PROFILES[PROFILE_ORDER[index]][axis]);
+      if (curr < prev) {
+        monotone = false;
+        monotoneFailures.push(`${axis}:${PROFILE_ORDER[index - 1]}=${prev}>${PROFILE_ORDER[index]}=${curr}`);
+      }
+    }
+  }
+  check('strength 内置四档逐轴单调', monotone, monotoneFailures.join('；'));
+  // 18. extends 只收紧：降级配置期拒绝（STRENGTH_WEAKENING）。
+  let weakeningError = null;
+  try {
+    resolveProfiles({ version: 1, customProfiles: { team: { extends: 'balanced', axes: { reviewRounds: 1 } } } });
+  } catch (error) {
+    weakeningError = error;
+  }
+  check('strength extends 降级拒绝（STRENGTH_WEAKENING）', weakeningError?.code === 'STRENGTH_WEAKENING', `实得 ${weakeningError?.code ?? '未拒绝'}`);
+  // 19. floor 只升不降：risk floor 把 explore 抬到 balanced；strict 不被低 floor 拉低。
+  const raised = mergeFloor({ ...BUILTIN_PROFILES.explore }, {}, 'risk', 'balanced');
+  const kept = mergeFloor({ ...BUILTIN_PROFILES.strict }, {}, 'risk', 'rapid');
+  check('strength floor 只升不降（抬升生效/降低拒绝）',
+    raised.axes.verificationBreadth === 'affected' && raised.sources.verificationBreadth === 'floor:risk'
+      && kept.axes.verificationBreadth === 'all' && kept.sources.verificationBreadth === undefined,
+    `raised=${raised.axes.verificationBreadth}/${raised.sources.verificationBreadth} kept=${kept.axes.verificationBreadth}`);
+  // 20. attribute floor 拒绝静默跳过（P3 R2 评审发现）：catalog 存在但 modules 非数组 → CATALOG_INVALID。
+  {
+    const { tmpdir: tmpdirOs } = await import('node:os');
+    const floorTmp = await import('node:fs/promises').then((fs) => fs.mkdtemp(path.join(tmpdirOs(), 'kimi-base-selftest-floor-')));
+    let floorError = null;
+    try {
+      await writeFile(path.join(floorTmp, 'module-catalog.json'), JSON.stringify({ version: 1, modules: 'oops' }));
+      await attributeFloorProfile({ catalogPath: path.join(floorTmp, 'module-catalog.json') }, ['src/a.js']);
+    } catch (error) {
+      floorError = error;
+    } finally {
+      await rm(floorTmp, { recursive: true, force: true }).catch(() => {});
+    }
+    check('strength attribute floor：catalog 形状非法响亮报错不静默跳过', floorError?.code === 'CATALOG_INVALID', `实得 ${floorError?.code ?? '未拒绝'}`);
+  }
   const failed = results.filter((item) => !item.ok);
   for (const item of results) process.stdout.write(`${item.ok ? 'PASS' : 'FAIL'} ${item.name}${item.detail ? ` — ${item.detail}` : ''}\n`);
   process.stdout.write(`selftest：${results.length - failed.length}/${results.length} 通过\n`);

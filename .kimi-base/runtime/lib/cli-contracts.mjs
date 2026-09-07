@@ -59,6 +59,16 @@ export const CONTRACTS = Object.freeze({
   help: { usage: 'help', positional: { min: 0, max: 0 }, flags: {} }
 });
 
+// REQ-052 strength 动词族契约（ADR-0008）。单列导出而不入 CONTRACTS：CONTRACTS 键集被
+// REQ-056 现状表行为测试（tests/cli-contracts.test.mjs 的 EXPECTED_FLAGS/extra 断言）锁定为
+// 39 dispatch verb + help，扩表属独立测试作者面；扩表落地后本条目应并入 CONTRACTS。
+// cli.mjs 的 dispatch/flag 校验/help 对本契约的派生方式与 CONTRACTS 条目完全一致。
+export const STRENGTH_CONTRACT = Object.freeze({
+  usage: 'strength list | status | set --profile P | explain [--risk R] [--operation O] [--paths a,b]',
+  positional: Object.freeze({ min: 1, max: 1 }),
+  flags: Object.freeze({ profile: value, risk: value, operation: value, paths: value })
+});
+
 // 深冻结：契约是跨模块共享事实，运行期不可变。
 for (const entry of Object.values(CONTRACTS)) {
   Object.freeze(entry.flags);

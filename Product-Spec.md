@@ -1,6 +1,6 @@
 # kimi-base Product Spec
 
-版本：v3.0.1 · 状态：v3.0 重构进行中（v3.0 需求节主体为 planned 标记，随 Phase 逐批激活） · 变更史见 `Product-Spec-CHANGELOG.md`
+版本：v3.0.2 · 状态：v3.0 重构进行中（v3.0 需求节主体为 planned 标记，随 Phase 逐批激活） · 变更史见 `Product-Spec-CHANGELOG.md`
 
 ## 1. 定位
 
@@ -140,10 +140,8 @@
 设计依据：docs/adr/0008（强度策略引擎）/ 0009（Receipt v2 与贷款账本）/ 0010（feedback 引擎化）/ 0011（CLI 契约注册表与 planned 标记）。planned 状态标记的语法与语义由本节末条需求定义；实现 Phase 落地的同 commit 摘除对应标记。
 
 - REQ-051 强度策略引擎：当 `.kimi-base/strength.json` 存在时，引擎必须提供四内置档（explore/rapid/balanced/strict），每档是 12 个封闭控制轴（verificationBreadth/testStrength/reviewerMode/reviewStages/reviewLenses/reviewRounds/evidenceLevel/deferralMode/completionMode/requireSpecTrace/contextBudgetChars/budgetMaxFiles）的向量，未知轴必须配置期拒绝；自定义档 extends 具名档时逐轴只允许收紧，任何降级必须报 STRENGTH_WEAKENING exit 1；floor（risk tier/operation/保护属性/路径四类）只能抬升不能降低，冲突取最高档；`rollout: shadow` 时解析结果必须只报告不阻断且 shadow 状态响亮可见。
-  状态：planned(P3)
   验收：strength 测试组（四档单调性/extends 降级拒/floor 抬升/shadow 不阻断）全绿。
 - REQ-052 strength 动词族：当执行 `strength list/status/set/explain` 时，引擎必须输出当前生效档与逐轴生效值；explain 必须给出每个轴的最终值来源（内置档/extends/floor 类别）；每次解析必须写有界 decision log（policyRevision/inputDigest/reasons）。
-  状态：planned(P3)
   验收：strength 测试组（explain 逐轴来源/decision log 字段齐备且有界）全绿。
 - REQ-053 Receipt v2 绑定面：当写 gate/评审回执时，引擎必须在 diffHash 之外增绑 policyHash、engineHash（runtime 树 LF 归一化哈希，排除运行态路径）与 catalogHash；策略收紧、引擎变化或 catalog 变化后 `receipt verify` 必须 exit 4（stale）且链完好不判篡改。
   状态：planned(P4)

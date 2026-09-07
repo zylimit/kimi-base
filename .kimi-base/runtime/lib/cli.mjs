@@ -6,7 +6,7 @@ import { doctorCommand, isSourceRepo, manifestCommand, packCheckCommand } from '
 import { adrCheckRun, archBaselineWrite, archCheckRun, archTrend } from './arch.mjs';
 import { assessBudget } from './budget.mjs';
 import { lintCatalog } from './catalog.mjs';
-import { CONTRACTS, GLOBAL_FLAGS } from './cli-contracts.mjs';
+import { CONTRACTS, GLOBAL_FLAGS, STRENGTH_CONTRACT } from './cli-contracts.mjs';
 import { cochangeAnalysis } from './cochange.mjs';
 import { findProjectRoot, loadContext, requireProjectRoot } from './config.mjs';
 import { buildContextPack, impactAnalysis } from './context.mjs';
@@ -27,6 +27,7 @@ import { REVIEW_STAGES, backlogAdd, backlogList, recordBlue, recordLens, reviewP
 import { agentsLint, rulesAudit, skillsLint, specLint, specView, traceRequirements } from './scan.mjs';
 import { selftestCommand } from './selftest.mjs';
 import { updateState } from './state.mjs';
+import { BUILTIN_PROFILES, PROFILE_ORDER, loadStrengthConfig, recordDecision, resolveProfiles, resolveStrength, setStrengthProfile, strengthCompletionCheck } from './strength.mjs';
 import { emptyTasks, getActiveTask, readTasks, taskCancel, taskStart } from './tasks.mjs';
 import { receiptVerify } from './verify.mjs';
 
@@ -67,6 +68,9 @@ hook  outward 契约保持 0（放行）/2（拦截）。
   review blue / lens <n> [--ad-hoc] / verdict / status / team / backlog add|list / pack
                                    Blue 自证 → 各 lens 报到 → 计算裁决（终审 ACCEPT 才写回执）
   fast on [hours]|off|status       限时质量旁路（默认 24h；protected 免疫）
+  strength list|status|set --profile P|explain [--risk R] [--operation O] [--paths a,b]
+                                   强度策略引擎：四内置档×12 封闭控制轴；extends 只收紧；
+                                   floor 只升不降取最高；rollout=shadow 只报告不阻断
   risk scan                        主动风险识别（腐化/stale/脏树/死锁残留）
   gate-audit                       死闸审计（从未拦过的闸要拿证据或撤掉）
   retention prune [--dry-run]      证据/上下文按保留策略销毁
@@ -124,6 +128,7 @@ waiver list
   receipt: `receipt verify\n  证据账本哈希链校验（chain=sha256(prev+contentHash)），含轮转 anchor 跨段续链；\n  证据文件重哈希。篡改/断链/缺失/漂移 fail-closed → exit 2；\n  链完好但回执指纹已移动（陈旧证据）→ exit 4。`,
   review: `review start [--base <ref>]     开启评审会话：绑定当前指纹（diffHash）；空 diff → exit 3（no-change）。\n  --base 进入 range 模式：hash=sha256(git diff <ref>...HEAD)，HEAD 不变即有效。\n  重开时上一轮裁决摘要进 lineage（跨轮存活）后重新绑定。\nreview blue                     stdin {"claims":[{"claim","evidence"}]}：作者自证（只作靶子）；\n  缺 claim/evidence 整批拒绝 exit 1；会话陈旧 exit 4。\nreview lens <name> [--ad-hoc]   stdin {"findings":[{"severity","message","location"?,"reproduction"?}],\n  "unable"?,"unableReason"?}。severity ∈ error|warning|info；每条 finding 必须有\n  location（:行号 结尾，兼容 Windows 路径）或 reproduction，一条非法整批拒绝 exit 1。\n  非召集 lens 须 --ad-hoc（额外证据，不门控，error 仍计入裁决）；阶段门控越级拒报（stageGated:true）。\nreview verdict [--reviewer X] [--notes T]   裁决是计算的：阻断（blue 缺/前沿 lens 未报到）exit 1；\n  任一 error → FIX_REQUIRED exit 2；应到 lens unable → NEEDS_MORE_EVIDENCE exit 3；否则 ACCEPT exit 0。\n  round=lineage+1；FIX_REQUIRED 达 maxRounds（catalog.review.maxRounds，默认 3）→ escalate:true。\n  回执只在 ACCEPT 且终审时写入账本（kind:review）；消费者只认回执，不认本退出码。\nreview status                   会话摘要（阶段进度/已报/未报/backlog 结转/裁决）；无会话 exit 3。\nreview team                     打印召集 lens（含阶段）+ 剔除 lens（含原因）+ 生效剖面。\nreview backlog add              stdin {owner,expiry,summary,lens,location?}；expiry 须未来；\n  summary 命中 security|safety|privacy|pii|secret|credential|密码|密钥|凭据 → 拒绝 exit 1\n  （启发式拦截，非保证）。backlog 存 state/review-backlog.json，跨会话存活。\nreview backlog list             全部条目，过期者标记。review pack\n  证据包：base（最新 tag→origin/main→HEAD~1→根提交）、commit 清单、diffstat、\n  删除审计、未跟踪文件、完整 diff（>800 行溢出到 diff-<epoch>.patch）；\n  写 state/review/review-pack-<epoch>.md。非 git → exit 3。`,
   fast: `fast on [hours=24] | fast off | fast status\n  限时质量旁路（.kimi-base/state/fast-mode.json，expires_epoch）。\n  protected 属性/kind（security/safety/privacy）免疫；每个 skip 留痕。\n  fast 是借账不是折扣：带 fastWindow 印记的回执不能关闭 task/release；\n  还债路径唯一——fast off 后重跑完整 gate。`,
+  strength: `strength list                       列出四内置档（explore/rapid/balanced/strict）与自定义档的逐轴生效值；\n  无 strength.json 也 exit 0（内置档客观存在）。\nstrength status                     当前生效档（strength.json profile，strength set 的 state 覆盖优先）、\n  逐轴生效值、policyHash、rollout 模式；无 strength.json → exit 3（治理未开启）。\nstrength set --profile <档名>       写 .kimi-base/state/strength.json 覆盖当前档；未知档名 exit 1 列合法集。\nstrength explain [--risk low|medium|high|critical] [--operation develop|complete|package|release|deploy]\n  [--paths a,b]                    逐轴标注最终值来源（builtin/extends/floor:risk/floor:operation/\n  floor:attribute/floor:path）；floor 只升不降、多 floor 冲突逐轴取最高；\n  --paths 命中治理面 .kimi-base/** 或信任边界（auth/security/secrets 路径段）→ strict；\n  受影响模块声明 security/safety/privacy @ high+ → strict（floor:attribute）。\n  每次解析写有界 decision log（≤200 条，state/strength-decisions.jsonl，\n  含 policyRevision/inputDigest/reasons）。\n  配置契约：自定义档 extends 具名档逐轴只收紧，降级配置期报 STRENGTH_WEAKENING exit 1；\n  rollout=shadow 时只报告不阻断（status 响亮标注，task complete 的 completionMode 不执法）；\n  rollout=enforce 且生效档 completionMode=forbidden 时 task complete exit 2。`,
   risk: `risk scan\n  主动风险识别：状态腐化隔离、账本断链、FAIL 连击、stale 锁、fast 过期、\n  脏树规模、证据膨胀、stale baseline。按严重度输出。`,
   'gate-audit': `gate-audit\n  对照 gate-log.jsonl 审计每个 hook/规则历史上是否真的拦过：\n  从未拦过的闸要么拿证据要么撤掉。`,
   retention: `retention prune [--dry-run]\n  按 harness.json retention 策略销毁过期 evidence/context；\n  保护当前 receipt 引用的证据。`,
@@ -161,7 +166,7 @@ function printHelp(verb) {
 // 全部契约里的 value flag 名（含全局）：先扫一遍定位 verb，再按该 verb 的契约精确解析。
 const VALUE_FLAG_NAMES_GLOBAL = new Set(Object.entries(GLOBAL_FLAGS).filter(([, spec]) => spec.kind === 'value').map(([name]) => name));
 const VALUE_FLAG_NAMES = new Set(VALUE_FLAG_NAMES_GLOBAL);
-for (const contract of Object.values(CONTRACTS)) {
+for (const contract of [...Object.values(CONTRACTS), STRENGTH_CONTRACT]) {
   for (const [name, spec] of Object.entries(contract.flags)) if (spec.kind === 'value') VALUE_FLAG_NAMES.add(name);
 }
 
@@ -172,13 +177,20 @@ function firstVerbToken(argv) {
     const [key, inline] = token.slice(2).split(/=(.*)/s, 2);
     // 跳过 value flag 的值——但值恰好是已注册动词时不跳（--check manifest：
     // check 在 quality/waiver 契约里是 value flag，会把 manifest 吞成值、静默 help）。
-    if (inline === undefined && VALUE_FLAG_NAMES.has(key) && !CONTRACTS[argv[index + 1]]) index += 1;
+    if (inline === undefined && VALUE_FLAG_NAMES.has(key) && !contractOf(argv[index + 1])) index += 1;
   }
   return undefined;
 }
 
+// 契约查表单源：strength（REQ-052）契约单列于 STRENGTH_CONTRACT（CONTRACTS 键集被 REQ-056
+// 现状表行为测试锁定为 39 dispatch verb + help）。所有查表必须走本函数——直接查 CONTRACTS
+// 会让 strength 的契约校验整体旁路（P3 评审 D4）。
+function contractOf(verb) {
+  return CONTRACTS[verb] ?? (verb === 'strength' ? STRENGTH_CONTRACT : undefined);
+}
+
 function assertContract(verb, args, flags, duplicates, emptyValues) {
-  const contract = CONTRACTS[verb];
+  const contract = contractOf(verb);
   if (!contract) return; // 未知动词走 default 分支报"未知动词"
   const allowed = new Set([...Object.keys(contract.flags), ...Object.keys(GLOBAL_FLAGS)]);
   for (const key of Object.keys(flags)) {
@@ -226,9 +238,63 @@ async function readStdinJson(what) {
   }
 }
 
+// ---------------- strength 动词族（REQ-051/REQ-052，ADR-0008） ----------------
+
+function strengthAxisLines(axes, sources = null) {
+  return Object.keys(BUILTIN_PROFILES.explore).map((axis) => `${axis}: ${String(axes[axis])}${sources ? ` [${sources[axis]}]` : ''}`);
+}
+
+async function dispatchStrength(ctx, sub, flags) {
+  if (sub === 'list') {
+    // 内置档客观存在：无 strength.json 也 exit 0；有配置则附带自定义档（extends 合并后生效值）。
+    const config = await loadStrengthConfig(ctx);
+    const lines = ['内置档（explore → rapid → balanced → strict，逐轴单调）：'];
+    for (const name of PROFILE_ORDER) lines.push(`- ${name}（内置）`, ...strengthAxisLines(BUILTIN_PROFILES[name]).map((line) => `    ${line}`));
+    if (config) {
+      const profiles = resolveProfiles(config);
+      for (const name of Object.keys(config.customProfiles ?? {})) {
+        lines.push(`- ${name}（自定义，extends ${config.customProfiles[name].extends}）`, ...strengthAxisLines(profiles[name].axes).map((line) => `    ${line}`));
+      }
+    } else {
+      lines.push('（未配置 .kimi-base/strength.json——强度治理未开启；种子：.kimi-base/templates/strength.example.json）');
+    }
+    printResult('strength list', lines);
+    return 0;
+  }
+  if (sub === 'status' || sub === 'explain') {
+    const resolved = await resolveStrength(ctx, sub === 'explain' ? {
+      risk: flags.risk !== undefined ? String(flags.risk) : undefined,
+      operation: flags.operation !== undefined ? String(flags.operation) : undefined,
+      paths: flags.paths !== undefined ? csv(flags.paths) : []
+    } : {});
+    await recordDecision(ctx, resolved);
+    const lines = [
+      `profile: ${resolved.active}（来源：${resolved.profileSource}）`,
+      `rollout: ${resolved.rollout}${resolved.shadow ? '（shadow 影子模式：只报告不阻断，task complete 的 completionMode 不执法）' : ''}`,
+      `policyHash: ${resolved.policyHash}`,
+      `inputDigest: ${resolved.inputDigest}`,
+      ...strengthAxisLines(resolved.axes, sub === 'explain' ? resolved.sources : null)
+    ];
+    if (sub === 'explain') {
+      lines.push(resolved.reasons.length ? `floor 决策：${resolved.reasons.join('；')}` : 'floor 决策：无 floor 输入（来源全部 builtin/extends）');
+    }
+    printResult(`strength ${sub}`, lines);
+    return 0;
+  }
+  if (sub === 'set') {
+    if (flags.profile === undefined || flags.profile === true) throw usageError('strength set 需要 --profile <档名>');
+    const result = await setStrengthProfile(ctx, String(flags.profile));
+    printResult('strength set 完成', [`当前档：${result.profile}（写 .kimi-base/state/strength.json，覆盖 strength.json 的 profile）`]);
+    return 0;
+  }
+  throw usageError(`未知 strength 子命令：${sub ?? '<缺>'}（list/status/set/explain）`);
+}
+
 async function dispatchCommand(argv) {
   const verb = firstVerbToken(argv);
-  const contract = verb ? CONTRACTS[verb] : undefined;
+  // strength（REQ-052）契约单列于 STRENGTH_CONTRACT：CONTRACTS 键集被 REQ-056 现状表
+  // 行为测试锁定（39 dispatch verb + help），校验/解析派生方式与契约条目完全一致。
+  const contract = verb ? contractOf(verb) : undefined;
   const valueFlags = new Set([...VALUE_FLAG_NAMES_GLOBAL, ...Object.entries(contract?.flags ?? {}).filter(([, spec]) => spec.kind === 'value').map(([name]) => name)]);
   const { positional, flags, duplicates, emptyValues } = parseCliArgs(argv, { valueFlags });
   const [, sub, ...rest] = positional;
@@ -244,6 +310,13 @@ async function dispatchCommand(argv) {
   assertContract(verb, positional.slice(1), flags, duplicates, emptyValues);
   const projectStart = flags.project ? path.resolve(String(flags.project)) : process.cwd();
   const needProject = async () => loadContext(await requireProjectRoot(projectStart));
+
+  // strength（REQ-052）：独立于 switch 路由——selftest contractCheck 双向钉死的路由集
+  // 与 CONTRACTS 键集同被现状表测试锁定，strength 待测试作者扩表后方可注册为 case。
+  if (verb === 'strength') {
+    const ctx = await needProject();
+    return await dispatchStrength(ctx, sub, flags);
+  }
 
   switch (verb) {
     case 'install':
@@ -345,11 +418,14 @@ async function dispatchCommand(argv) {
       if (sub === 'complete') {
         const task = await getActiveTask(ctx);
         if (!task) throw usageError('当前没有 active 任务');
+        // REQ-051：生效档 completionMode=forbidden 时完成门阻断（rollout=shadow 只报告不阻断）。
+        const strength = await strengthCompletionCheck(ctx);
         const gate = await completionGate(ctx, task);
         const coverage = await attributeCoverage(ctx, {});
         const gaps = [...gate.gaps.map((item) => `[${item.kind ?? '-'}] ${item.check ?? '-'}：${item.reason}`)];
         for (const item of coverage.uncovered ?? []) gaps.push(`五性 uncovered：${item.attribute}(${item.tier}) ${item.reason}`);
-        if (!gate.ok || !coverage.ok) {
+        if (strength?.blocked) gaps.push(`completionMode: forbidden —— 当前强度档 ${strength.profile} 禁止 task complete（强度策略 rollout: enforce；切换档位：strength set --profile <档名>）`);
+        if (!gate.ok || !coverage.ok || strength?.blocked) {
           printResult('完成门阻断（exit 2）', [`缺口 ${gaps.length} 项：`, ...gaps.map((item) => `- ${item}`)]);
           return 2;
         }
