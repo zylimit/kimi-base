@@ -12,6 +12,7 @@ import { DOD_STEPS, riskScan, runDod } from './hygiene.mjs';
 import { latestReceipts, readLedgerEntries } from './ledger.mjs';
 import { syncCheck } from './memory.mjs';
 import { backlogList } from './review.mjs';
+import { OPERATION_FLOOR, loadStrengthConfig, resolveStrength } from './strength.mjs';
 import { receiptVerify } from './verify.mjs';
 
 // DOD_STEPS 长度仅用于报告；从 hygiene 单源读取，禁止硬编码第二份。
@@ -115,12 +116,26 @@ export async function releaseReadiness(ctx) {
   const warnings = items.filter((item) => !item.blocking && !item.ok);
   const ready = blockers.length === 0;
 
+  // 强度 floor 可见性（ADR-0008 OPERATION_FLOOR.release=strict）：发布是 strict floor
+  // 操作，当前生效档低于 floor 时逐轴抬升必须在就绪判定里可见。不改变上面八条件本身；
+  // 治理未开启/解析异常如实一行说明，绝不静默。
+  const strength = await attempt(async () => {
+    const config = await loadStrengthConfig(ctx);
+    if (!config) return { ok: true, line: '强度治理未开启（无 .kimi-base/strength.json）——operation=release 的 strict floor 不生效' };
+    const resolved = await resolveStrength(ctx, { operation: 'release' });
+    const floorLine = resolved.reasons.length
+      ? resolved.reasons.join('；')
+      : `无需抬升（生效档不弱于 ${OPERATION_FLOOR.release} floor）`;
+    return { ok: true, line: `当前生效档 ${resolved.active}（来源：${resolved.profileSource}）；operation=release floor → ${OPERATION_FLOOR.release} 档下限，${floorLine}` };
+  });
+
   return {
     ok: ready,
     ready,
     blockers: blockers.map((item) => item.id),
     warnings: warnings.map((item) => item.id),
     items,
+    strength: strength.line ?? `强度 floor 判定降级：${strength.reason}`,
     // 明示边界：本命令永远不执行发布动作。
     never: '本命令永不打 tag、永不 push、永不建分支——那些是 HIGH 级人工动作；这里只组装证据。'
   };

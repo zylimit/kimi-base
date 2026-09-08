@@ -1075,3 +1075,38 @@ describe('资产锚点：内容面（REQ-070/071/075）', () => {
     }
   });
 });
+
+// ---------------- CI 模板锚点（P9：CI 发布面扩展，轻量内容面） ----------------
+
+describe('资产锚点：CI 门禁模板（P9）', () => {
+  const readRepo = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
+
+  // GitLab 变体：与 github-gate 同语义的关键阶段 + GitLab 结构键齐备
+  test('gitlab-gate.yml 存在且为 GitLab 结构（stages/script/rules），含关键阶段', () => {
+    const text = readRepo('.kimi-base/templates/gitlab-gate.yml');
+    for (const key of ['stages:', 'script:', 'rules:']) {
+      assert.ok(text.includes(key), `gitlab-gate.yml 缺 GitLab 结构键「${key}」`);
+    }
+    for (const step of ['selftest', 'check-syntax', 'manifest.mjs --check', 'run-tests', ' dod', 'arch trend --gate', 'risk scan', 'doctor']) {
+      assert.ok(text.includes(step), `gitlab-gate.yml 缺关键阶段「${step.trim()}」`);
+    }
+  });
+
+  // REQ-066：regression 套必须进 CI——GitLab 变体与 github-gate 同语义挂 run-eval
+  // （P10 评审增补：github 锚点在 tests/eval.test.mjs，gitlab 变体锚点归本组）
+  test('gitlab-gate.yml 引用 run-eval（REQ-066 regression 套进 CI）', () => {
+    const text = readRepo('.kimi-base/templates/gitlab-gate.yml');
+    assert.match(text, /run-eval/,
+      'gitlab-gate.yml 必须引用 .kimi-base/audit/run-eval.mjs（REQ-066：regression 套必须进 CI）');
+  });
+
+  // GitHub 模板增强：每周定时空跑（环境腐烂早发现）+ 末尾汇总判定显式列出被跳过/降级项
+  test('github-gate.yml 含每周 cron 与 continue-on-error 汇总判定（放行 ≠ 全部通过）', () => {
+    const text = readRepo('.kimi-base/templates/github-gate.yml');
+    assert.match(text, /^  schedule:/m, 'github-gate.yml 缺 schedule 触发器');
+    assert.match(text, /cron:\s*'[^']+'/, 'github-gate.yml 缺 cron 表达式');
+    assert.match(text, /continue-on-error: true/, 'github-gate.yml 缺 continue-on-error');
+    assert.match(text, /汇总判定/, 'github-gate.yml 缺末尾汇总判定步骤');
+    assert.match(text, /放行 ≠ 全部通过/, '汇总判定必须显式声明「放行 ≠ 全部通过」');
+  });
+});

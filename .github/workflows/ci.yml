@@ -34,6 +34,9 @@ jobs:
         run: node .kimi-base/audit/manifest.mjs --check
       - name: 行为测试
         run: node .kimi-base/audit/run-tests.mjs
+      # REQ-066：自我 eval 套件 regression（防回退套进 CI；capability 爬坡套默认不执行）。
+      - name: 自我 eval（regression 套）
+        run: node .kimi-base/audit/run-eval.mjs
       # 静态治理电池：catalog/skills/agents/spec/adr/fitness --all/trace/receipt/arch。
       - name: Definition of Done
         run: node .kimi-base/runtime/kimi-base.mjs dod

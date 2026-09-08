@@ -7,6 +7,12 @@
 # 三面执法模型（docs/ISOLATION-PROFILES.md）：
 #   插件 hooks（工具调用时，fail-open 护栏）→ git hooks（提交/推送时，本地 fail-closed，
 #   --no-verify 可绕）→ 本 CI（合并权威，fail-closed，不可绕）。
+#
+# 两条实证实践（对齐 cc-base）：
+#   1. 每周定时空跑（cron 错开整点：周一 03:17 UTC）——无人提交时依赖/工具链/镜像
+#      腐烂也能早发现，而不是等下次 PR 才炸。
+#   2. 全部步骤 continue-on-error + 末尾「汇总判定」一步收口——四层缺陷压回一轮反馈，
+#      不被第一个失败截断；汇总步骤显式列出被跳过/降级项（放行 ≠ 全部通过）。
 
 name: kimi-base gate
 
@@ -15,6 +21,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    # 每周一 03:17 UTC 空跑（错开整点，避开 CI 峰时）。
+    - cron: '17 3 * * 1'
 
 permissions:
   contents: read
@@ -34,23 +43,95 @@ jobs:
           node-version: ${{ matrix.node }}
       # 引擎先自证，再评判仓库。
       - name: 引擎自检
+        id: selftest
+        continue-on-error: true
         run: node .kimi-base/runtime/kimi-base.mjs selftest
       # 独立审计脚本（不 import 引擎）：引擎内部缺陷无法让它们沉默。
       - name: 语法（独立审计）
+        id: syntax
+        continue-on-error: true
         run: node .kimi-base/audit/check-syntax.mjs
       - name: 机密扫描（独立审计）
+        id: secrets
+        continue-on-error: true
         run: node .kimi-base/audit/scan-secrets.mjs
       - name: 指令文件注入扫描（独立审计）
+        id: instructions
+        continue-on-error: true
         run: node .kimi-base/audit/scan-instructions.mjs
       - name: 载荷完整性（独立审计）
+        id: manifest
+        continue-on-error: true
         run: node .kimi-base/audit/manifest.mjs --check
       - name: 行为测试
+        id: tests
+        continue-on-error: true
         run: node .kimi-base/audit/run-tests.mjs
+      # REQ-066：自我 eval 套件 regression（防回退套必须进 CI）。
+      # capability 爬坡套默认不执行（本地 --include-capability 执行且永不阻断）。
+      # 注意：本步面向脚手架自仓（tests/eval 是维护面不进安装面）；
+      # 采纳者仓库没有 tests/eval/，复制本模板后请删除本步（并在汇总判定摘行）。
+      - name: 自我 eval（regression 套）
+        id: eval
+        continue-on-error: true
+        run: node .kimi-base/audit/run-eval.mjs
       - name: Definition of Done
+        id: dod
+        continue-on-error: true
         run: node .kimi-base/runtime/kimi-base.mjs dod
       - name: 架构漂移棘轮
+        id: archtrend
+        continue-on-error: true
         run: node .kimi-base/runtime/kimi-base.mjs arch trend --gate
       # 腐化信号扫描（建议态，不阻断）。
       - name: 风险扫描（advisory）
+        id: risk
         continue-on-error: true
         run: node .kimi-base/runtime/kimi-base.mjs risk scan
+      - name: 安装完整性自检
+        id: doctor
+        continue-on-error: true
+        run: node .kimi-base/runtime/kimi-base.mjs doctor .
+      # 汇总判定：任何阻断步骤失败/被跳过都在这里收口；逐行列出 outcome，
+      # 放行 ≠ 全部通过——被跳过（skipped）项显式可见，不得静默。
+      - name: 汇总判定
+        if: always()
+        shell: bash
+        env:
+          SELFTEST: ${{ steps.selftest.outcome }}
+          SYNTAX: ${{ steps.syntax.outcome }}
+          SECRETS: ${{ steps.secrets.outcome }}
+          INSTRUCTIONS: ${{ steps.instructions.outcome }}
+          MANIFEST: ${{ steps.manifest.outcome }}
+          TESTS: ${{ steps.tests.outcome }}
+          EVAL: ${{ steps.eval.outcome }}
+          DOD: ${{ steps.dod.outcome }}
+          ARCHTREND: ${{ steps.archtrend.outcome }}
+          DOCTOR: ${{ steps.doctor.outcome }}
+          RISK: ${{ steps.risk.outcome }}
+        run: |
+          fail=0
+          # report() 永不非零返回：GitHub 的 shell:bash 即 bash -eo pipefail，
+          # 函数返回 1 会被 -e 提前中止、exit $fail 被绕过（P10 correctness 评审实证：
+          # advisory+skipped 时 [ "$3" = blocking ] && … 短路由返回 1）。汇总打印
+          # 恒 true，最终判定只走 exit $fail。
+          report() { # $1=步骤名 $2=outcome $3=blocking|advisory
+            case "$2" in
+              success) echo "[PASS] $1" ;;
+              skipped) echo "[SKIP] $1——被跳过（放行 ≠ 全部通过）"; if [ "$3" = blocking ]; then fail=1; fi ;;
+              *) if [ "$3" = advisory ]; then echo "[ADVS] $1——建议项未通过（outcome=$2，不阻断）"; else echo "[FAIL] $1（outcome=$2）"; fail=1; fi ;;
+            esac
+            return 0
+          }
+          report 引擎自检 "$SELFTEST" blocking
+          report 语法审计 "$SYNTAX" blocking
+          report 机密扫描 "$SECRETS" blocking
+          report 指令注入扫描 "$INSTRUCTIONS" blocking
+          report 载荷完整性 "$MANIFEST" blocking
+          report 行为测试 "$TESTS" blocking
+          report 自我eval-regression "$EVAL" blocking
+          report DoD "$DOD" blocking
+          report 架构棘轮 "$ARCHTREND" blocking
+          report doctor "$DOCTOR" blocking
+          report 风险扫描 "$RISK" advisory
+          exit $fail

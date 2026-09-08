@@ -1071,6 +1071,7 @@ async function dispatchCommand(argv) {
       const result = await releaseReadiness(ctx);
       printResult(result.ready ? 'release：READY' : 'release：NOT READY（exit 2）', [
         result.never,
+        `强度 floor：${result.strength}`,
         ...result.items.map((item) => `- [${item.ok ? 'x' : ' '}] ${item.id}${item.blocking ? '（阻断）' : '（建议）'}${item.detail ? `——${item.detail}` : ''}`),
         result.ready
           ? '全部阻断条件成立。人可以据此签字、打 tag、发布。'

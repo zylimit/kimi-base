@@ -1,5 +1,16 @@
 # Product Spec 变更日志
 
+## v3.1.7（2026-09-08）P10 激活：REQ-066 自我 eval 套件
+
+### 为什么改
+
+REQ-066 落地：tests/eval/ 自我 eval 套件（regression 防回退 + capability 爬坡两套分列，清单机器可区分）+ 独立执行入口 .kimi-base/audit/run-eval.mjs（审计者独立铁律：零第三方依赖、禁 import 引擎，承 ADR-0002）+ regression 套进 CI 门禁模板与本仓 dogfood 工作流。按 REQ-067 机制摘 planned 标记。
+
+### 变更
+
+- REQ-066（自我 eval 套件）摘 planned(P10) 标记：tests/eval/manifest.json 清单（{version, regression:[], capability:[]}，内联任务对象）计 23 任务——regression 20（引擎自检/doctor/catalog·arch·adr/spec lint/trace/skills·agents-lint/rules-audit/pack-check/四个独立审计脚本/未知 flag 拒绝/gate 阻断 FAIL/缺命令必 BLOCKED/planned 语法门禁/run-tests 降级，全部真跑真实命令或最小夹具）+ capability 3（runtime 全树零网络 import/install→doctor 端到端/regression 套增厚 ≥30，允许当前失败永不阻断）；每任务六字段（id/name/description/expected/judge/trace）齐备且 trace 锚真实 REQ/NFR id。run-eval 契约：judge.command 在临时目录跑子进程断言退出码（expectExit/expectStdout，{REPO} 占位符+KIMI_BASE_EVAL_REPO 注入）；regression 失败 exit 1 点名任务 id；capability 默认只报 total、--include-capability 执行并报告但永不阻断；任务总数 <20 或 tests/eval 缺失 exit 1；stdout 末行单行 JSON。CI 接入：templates/github-gate.yml 与本仓 .github/workflows/ci.yml 均在行为测试后增 run-eval regression 阻断步（github 模板入汇总判定）。验收 tests/eval.test.mjs 17 用例全绿（红测先行，实现未动任何既有断言，仅按写测者约定摘掉 CI 用例的 skip 标记）。
+- 版本号 v3.1.6 → v3.1.7。
+
 ## v3.1.6（2026-09-08）P8 激活：REQ-062/063/064/065 分层反馈与渐进采用
 
 ### 为什么改

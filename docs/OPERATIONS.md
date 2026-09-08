@@ -152,6 +152,8 @@ node .kimi-base/runtime/kimi-base.mjs install . --hooks   # 或 upgrade . --hook
 
 本仓 `.github/workflows/ci.yml` 即参考实现：selftest → check-syntax → scan-secrets → scan-instructions → manifest --check → run-tests → `dod` → `arch trend --gate`（ubuntu+windows × node 20/22）。采纳者把 `.kimi-base/templates/github-gate.yml` 复制到自己仓的 `.github/workflows/`（installer 不写 `.github`——不越俎代庖）；安装布局 = 源布局，路径无需调整。
 
+采纳者模板的两条实证实践（P9 起）：① 每周定时空跑（cron 错开整点，周一 03:17 UTC）——无人提交时依赖/工具链/镜像腐烂也能早发现；② 全部步骤 `continue-on-error` + 末尾「汇总判定」一步收口——四层缺陷压回一轮反馈，汇总显式列出被跳过/降级项（放行 ≠ 全部通过）。GitLab 采纳者用 `.kimi-base/templates/gitlab-gate.yml`（复制为 `.gitlab-ci.yml` 或 include）：与 GitHub 版同语义的十段管线，GitLab script 任一行非零即中止故改为捕获退出码 + 末尾汇总收口；GitLab 不在 YAML 写 cron，周检到 CI/CD → Schedules 建 schedule（rules 已放行 schedule 来源）。
+
 ## 11. 规模化与仓群治理（P6）
 
 | 命令 | 说明 |
@@ -163,6 +165,6 @@ node .kimi-base/runtime/kimi-base.mjs install . --hooks   # 或 upgrade . --hook
 | `fleet impact <contract>` | 契约变更波及面：直接消费者 + 传递闭包；`coordinationCost` = 必须一起发布的仓数（这个数字就是决策）；未知契约 exit 3 + 已知清单 |
 | `fleet status [--deep]` | 组级体检：逐仓 spawn 各自引擎 `doctor`（120s 超时，`KIMI_BASE_ROOT` 钉根防串仓），`--deep` 加 `dod`；任一仓有问题 exit 1 |
 | `fleet recap [--budget N]` | 组级"现在到哪了"：逐仓 `recap --budget 700` 取前 5 条 dash 行，总量 ≤ 预算（默认 8000） |
-| `release` | 发布就绪 composite：静态电池（与 `dod` 共享 DOD_STEPS 单源；STALE 不阻断但可见）+ fast 窗口已关 + fast 欠账已还 + 账本链完好（只判完整性：篡改/断链/缺失/漂移；陈旧归 receipt-fresh）+ 当前指纹 fresh 回执（含 `range.head === HEAD` 的 range 评审回执）+ sync-check 干净 + 评审 backlog 无过期；建议项 risk scan；阻断项不满足 exit 2 逐项列出。**永不打 tag/push/建分支** |
+| `release` | 发布就绪 composite：静态电池（与 `dod` 共享 DOD_STEPS 单源；STALE 不阻断但可见）+ fast 窗口已关 + fast 欠账已还 + 账本链完好（只判完整性：篡改/断链/缺失/漂移；陈旧归 receipt-fresh）+ 当前指纹 fresh 回执（含 `range.head === HEAD` 的 range 评审回执）+ sync-check 干净 + 评审 backlog 无过期；建议项 risk scan；阻断项不满足 exit 2 逐项列出。输出首行附强度 floor 可见性一行（operation=release → strict 档下限；当前生效档、floor 来源与抬升轴数；治理未开启如实说明，不改变八条件本身）。**永不打 tag/push/建分支** |
 
 fleet.json 是组级文件（放各仓共同祖先目录）：`--fleet <path>` > `KIMI_BASE_FLEET` 环境变量 > 自 cwd 向上逐级查找；找不到 = 单仓模式（fleet 动词 exit 3）。installer 不种子 fleet.json；治理指南与示例见 `.kimi-base/templates/FLEET.md` 与 `.kimi-base/templates/fleet.example.json`。字段级协议见 `docs/PROTOCOLS.md` 第 15 节。

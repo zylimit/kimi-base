@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "regression": [
+    {
+      "id": "reg-selftest",
+      "name": "引擎自检全绿",
+      "description": "对本仓执行 kimi-base.mjs selftest，引擎内部自检（契约对账等）必须全部通过。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs selftest" },
+      "trace": ["NFR-006"]
+    },
+    {
+      "id": "reg-doctor",
+      "name": "doctor 安装完整性自检",
+      "description": "对本仓执行 doctor .，安装面（文件存在性/manifest 哈希/frontmatter/rules 指针）必须零 error。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs doctor ." },
+      "trace": ["REQ-004"]
+    },
+    {
+      "id": "reg-catalog-lint",
+      "name": "catalog lint 归属完备",
+      "description": "每条 tracked 路径必须有主、无 catch-all、无 UNJUSTIFIED_TIER。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs catalog lint" },
+      "trace": ["REQ-015"]
+    },
+    {
+      "id": "reg-arch-check",
+      "name": "arch check 架构防腐",
+      "description": "真实 import 边与声明图对账：禁边/分层/未声明/环检测全绿。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs arch check" },
+      "trace": ["REQ-015"]
+    },
+    {
+      "id": "reg-adr-check",
+      "name": "adr check 无幽灵引用",
+      "description": "ADR 的 Enforced-by 引用必须真实存在，幽灵引用判 FAIL。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs adr check" },
+      "trace": ["REQ-015"]
+    },
+    {
+      "id": "reg-spec-lint",
+      "name": "spec lint 需求可判定",
+      "description": "Product-Spec 全部需求通过可判定性 lint（规范词/度量/占位符/重复 id/缺验收）。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs spec lint" },
+      "trace": ["REQ-033"]
+    },
+    {
+      "id": "reg-trace",
+      "name": "trace 需求追溯覆盖",
+      "description": "trace 覆盖率不低于门禁阈值且无代码/测试悬空引用。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs trace" },
+      "trace": ["REQ-033"]
+    },
+    {
+      "id": "reg-skills-lint",
+      "name": "skills-lint 资产合规",
+      "description": "skills frontmatter 合规：name==目录名、description 长度、体积、重名全绿。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs skills-lint" },
+      "trace": ["REQ-035"]
+    },
+    {
+      "id": "reg-agents-lint",
+      "name": "agents-lint 资产合规",
+      "description": "agents 资产与根 AGENTS.md 体积预算（>6000 字节判 error）全绿。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs agents-lint" },
+      "trace": ["REQ-035", "REQ-059"]
+    },
+    {
+      "id": "reg-rules-audit",
+      "name": "rules-audit 执法率门禁",
+      "description": "宪法规则分类 enforced/prompt-only/unenforced，无执法规则数不得超 harness.json 阈值。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs rules-audit" },
+      "trace": ["REQ-034", "REQ-059"]
+    },
+    {
+      "id": "reg-pack-check",
+      "name": "pack-check 发布面零泄漏",
+      "description": "发布面不得含 state/、私密反馈、旁路文件、秘密/个人路径模式。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs pack-check" },
+      "trace": ["REQ-005"]
+    },
+    {
+      "id": "reg-manifest-check",
+      "name": "manifest --check 载荷无漂移",
+      "description": "独立审计脚本重算 LF-sha256 digest，FRAMEWORK-MANIFEST 与载荷逐字节一致。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/audit/manifest.mjs --check" },
+      "trace": ["REQ-003", "REQ-037"]
+    },
+    {
+      "id": "reg-scan-secrets",
+      "name": "scan-secrets 机密扫描",
+      "description": "禁入库路径未被追踪、无凭据形状字面量（独立审计脚本）。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/audit/scan-secrets.mjs" },
+      "trace": ["REQ-005"]
+    },
+    {
+      "id": "reg-scan-instructions",
+      "name": "scan-instructions 注入扫描",
+      "description": "指令文件注入扫描零发现（独立审计脚本）。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/audit/scan-instructions.mjs" },
+      "trace": ["REQ-037"]
+    },
+    {
+      "id": "reg-check-syntax",
+      "name": "check-syntax 全部可解析",
+      "description": "每个 tracked JS 模块都必须可解析（独立审计脚本）。",
+      "expected": "exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/audit/check-syntax.mjs" },
+      "trace": ["NFR-006"]
+    },
+    {
+      "id": "reg-unknown-flag",
+      "name": "未知 flag 响亮拒绝",
+      "description": "引擎对未知 flag 必须 exit 1 并列出合法 flag 集（CLI 契约注册表），不得静默吞掉。",
+      "expected": "exit 1",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/run-at-repo.mjs\" .kimi-base/runtime/kimi-base.mjs gate --definitely-not-a-flag", "expectExit": 1 },
+      "trace": ["REQ-056"]
+    },
+    {
+      "id": "reg-gate-blocks-fail",
+      "name": "gate 阻断失败检查",
+      "description": "最小夹具：矩阵中检查命令恒失败时，gate 必须 exit 2 并点名 FAIL（阻断语义绝不放行）。",
+      "expected": "夹具内 gate exit 2 且输出含 FAIL",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/case-gate-blocks-fail.mjs\"" },
+      "trace": ["REQ-013"]
+    },
+    {
+      "id": "reg-gate-blocked-no-command",
+      "name": "gate 缺命令必 BLOCKED",
+      "description": "最小夹具：检查不带 command 时必须 BLOCKED（绝不假绿），gate exit 2。",
+      "expected": "夹具内 gate exit 2 且输出含 BLOCKED",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/case-gate-blocked-no-command.mjs\"" },
+      "trace": ["REQ-013", "NFR-005"]
+    },
+    {
+      "id": "reg-planned-marker-lint",
+      "name": "planned 标记语法门禁",
+      "description": "最小夹具：planned 标记缺 phase 编号必须被 spec lint 判 PLANNED_NO_PHASE 且 exit 1。",
+      "expected": "夹具内 spec lint exit 1 且输出含 PLANNED_NO_PHASE",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/case-planned-marker.mjs\"" },
+      "trace": ["REQ-067"]
+    },
+    {
+      "id": "reg-run-tests-degraded",
+      "name": "run-tests 无测试响亮降级",
+      "description": "在没有 tests/ 的目录（judge 临时 cwd）跑 run-tests.mjs：没有测试可跑 = 什么都没证明，必须 exit 3 而非假绿。",
+      "expected": "exit 3",
+      "judge": { "command": "node \"{REPO}/.kimi-base/audit/run-tests.mjs\"", "expectExit": 3 },
+      "trace": ["NFR-005"]
+    }
+  ],
+  "capability": [
+    {
+      "id": "cap-zero-network-runtime",
+      "name": "runtime 全树零网络 import",
+      "description": "NFR-004 终态目标：治理引擎全树（含 supervisor 健康探针例外）零 node:http/https/net 引用——探针改进程外方案后才可达，当前允许失败。",
+      "expected": "当前失败（supervisor.mjs 健康探针为例外），爬坡目标 exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/case-zero-network.mjs\"" },
+      "trace": ["NFR-004"]
+    },
+    {
+      "id": "cap-install-doctor-e2e",
+      "name": "安装端到端：install → 种子落地 → doctor",
+      "description": "空目录 install 后种子（harness/AGENTS.md）与 install-receipt 落地齐全，安装面自带引擎 doctor . exit 0。",
+      "expected": "install exit 0、种子与 receipt 落地、doctor exit 0",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/case-install-doctor.mjs\"" },
+      "trace": ["REQ-002", "REQ-004"]
+    },
+    {
+      "id": "cap-regression-suite-growth",
+      "name": "regression 套增厚至 ≥30",
+      "description": "REQ-066 演化目标：防回退套从落地基线 20 持续增厚到 30+；未达标只报告不阻断。",
+      "expected": "当前失败（基线 20），爬坡目标 regression ≥ 30",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/case-suite-growth.mjs\"" },
+      "trace": ["REQ-066"]
+    }
+  ]
+}

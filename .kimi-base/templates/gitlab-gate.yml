@@ -1,0 +1,56 @@
+# kimi-base 采纳者 CI 门禁模板 · GitLab 变体（第三道闸：合并权威）
+#
+# 用法：复制本文件为 <你的仓库>/.gitlab-ci.yml（或在既有 .gitlab-ci.yml 里 include 本文件）。
+# 安装布局 = 源布局，路径无需调整。
+# 前提：仓库已经过 install（存在 .kimi-base/harness.json 标记与复制面）。
+#
+# 与 templates/github-gate.yml 同语义：
+#   selftest → check-syntax → scan-secrets → scan-instructions → manifest --check
+#   → run-tests → run-eval（regression）→ dod → arch trend --gate → risk scan（建议）→ doctor → 汇总判定。
+#
+# 每周定时空跑：GitLab 不在 YAML 里写 cron——到 CI/CD → Schedules 建 schedule
+# （cron 建议 17 3 * * 1，错开整点，环境腐烂早发现），rules 已放行 schedule 来源。
+#
+# 汇总判定：GitLab script 任一行非零即整段中止，故全部步骤先捕获退出码、末尾
+# 一步统一收口——所有缺陷压回一轮反馈；被跳过/降级项显式列出（放行 ≠ 全部通过）。
+
+stages:
+  - gate
+
+kimi-base-gate:
+  stage: gate
+  image: node:22
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  script:
+    # 引擎先自证，再评判仓库；独立审计脚本（不 import 引擎）引擎缺陷无法让它们沉默。
+    - |
+      FAIL=""
+      step() {
+        name="$1"; shift
+        echo "== $name"
+        if "$@"; then echo "[PASS] $name"; else rc=$?; echo "[FAIL] $name（exit $rc）"; FAIL="$FAIL $name"; fi
+      }
+      step 引擎自检 node .kimi-base/runtime/kimi-base.mjs selftest
+      step 语法审计 node .kimi-base/audit/check-syntax.mjs
+      step 机密扫描 node .kimi-base/audit/scan-secrets.mjs
+      step 指令注入扫描 node .kimi-base/audit/scan-instructions.mjs
+      step 载荷完整性 node .kimi-base/audit/manifest.mjs --check
+      step 行为测试 node .kimi-base/audit/run-tests.mjs
+      # REQ-066：自我 eval 套件 regression（防回退套必须进 CI）。
+      # capability 爬坡套默认不执行（本地 --include-capability 执行且永不阻断）。
+      # 注意：本步面向脚手架自仓（tests/eval 是维护面不进安装面）；
+      # 采纳者仓库没有 tests/eval/，复制本模板后请删除本行。
+      step 自我eval-regression node .kimi-base/audit/run-eval.mjs
+      step DoD node .kimi-base/runtime/kimi-base.mjs dod
+      step 架构棘轮 node .kimi-base/runtime/kimi-base.mjs arch trend --gate
+      step doctor node .kimi-base/runtime/kimi-base.mjs doctor .
+      # 腐化信号扫描（建议态，不阻断——发现要看得见，但不替人做决定）。
+      echo "== 风险扫描（advisory）"
+      if node .kimi-base/runtime/kimi-base.mjs risk scan; then echo "[PASS] 风险扫描"; else echo "[ADVS] 风险扫描——建议项未通过（不阻断）"; fi
+      # 汇总判定：放行 ≠ 全部通过——上面任何 [FAIL]/[ADVS] 行都在此收口。
+      if [ -n "$FAIL" ]; then echo "汇总判定：阻断步骤失败：$FAIL"; exit 1; fi
+      echo "汇总判定：全部阻断步骤通过"

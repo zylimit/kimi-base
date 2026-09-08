@@ -22,6 +22,12 @@
       "bytes": 7052
     },
     {
+      "path": ".kimi-base/audit/run-eval.mjs",
+      "source": ".kimi-base/audit/run-eval.mjs",
+      "sha256": "95c13a9c4047889aabff44b6da6552827923f70b027976fb77b5c89ed4bba91c",
+      "bytes": 8405
+    },
+    {
       "path": ".kimi-base/audit/run-tests.mjs",
       "source": ".kimi-base/audit/run-tests.mjs",
       "sha256": "85971ad265b456682038b477d56efceeee3fb0da9fbc63cce4ce15f62062ffda",
@@ -182,8 +188,8 @@
     {
       "path": ".kimi-base/runtime/lib/cli.mjs",
       "source": ".kimi-base/runtime/lib/cli.mjs",
-      "sha256": "3f78b72300e9d9d5492f33eb98cceeb8d8cd1a270af4f8d2b2755c57753e8ec8",
-      "bytes": 95262
+      "sha256": "d578c559cebe9c9f76bba88687560d03d7b4b42b987b19dacabc290ed7adbd74",
+      "bytes": 95307
     },
     {
       "path": ".kimi-base/runtime/lib/cochange.mjs",
@@ -302,8 +308,8 @@
     {
       "path": ".kimi-base/runtime/lib/release.mjs",
       "source": ".kimi-base/runtime/lib/release.mjs",
-      "sha256": "27dab210e3824d74d5369f0f97d2f7e87e39a1803a86faa38bdddb66b843af47",
-      "bytes": 7884
+      "sha256": "ca3f022a7c1b4431c33c2dc1ce5015a51b74ce37f03012798f34bfffbcfd5598",
+      "bytes": 9031
     },
     {
       "path": ".kimi-base/runtime/lib/review.mjs",
@@ -411,8 +417,14 @@
     {
       "path": ".kimi-base/templates/github-gate.yml",
       "source": ".kimi-base/templates/github-gate.yml",
-      "sha256": "45c4cd010fbfc8b581b548124456a72fed1cb709edf20bb3ca4328fd37f3343b",
-      "bytes": 2128
+      "sha256": "9feba3a7adb23316076b6235deeb619fa4cd11f3671262205fb2c5e1f878a5c6",
+      "bytes": 6025
+    },
+    {
+      "path": ".kimi-base/templates/gitlab-gate.yml",
+      "source": ".kimi-base/templates/gitlab-gate.yml",
+      "sha256": "7432172e18a6b194cc33414394ebee9ba681c18b545c774dffa9e73917436f5b",
+      "bytes": 3244
     },
     {
       "path": ".kimi-base/templates/MODULE-CAPSULE.md",
@@ -639,5 +651,5 @@
       "seed": true
     }
   ],
-  "digest": "1193aacb96ffa925c2292d6559de561d9dd272df7c5f0d50553834b92e167585"
+  "digest": "3272e4849c19912ec2f9ea8358fd50549f055dea95f2c30854e2bbaaf391b21d"
 }

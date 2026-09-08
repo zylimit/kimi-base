@@ -1,6 +1,6 @@
 # kimi-base Product Spec
 
-版本：v3.1.6 · 状态：v3.0 重构进行中（P0-P6 已交付；P7-P10 工程面与 P11 软层并行推进） · 变更史见 `Product-Spec-CHANGELOG.md`
+版本：v3.1.7 · 状态：v3.0 重构进行中（P0-P6 已交付；P7-P10 工程面与 P11 软层并行推进） · 变更史见 `Product-Spec-CHANGELOG.md`
 
 ## 1. 定位
 
@@ -170,7 +170,6 @@
 - REQ-065 安装器锁与 marker：当 install/upgrade 执行时，必须支持 dry-run 预演、独占锁与 maintenance marker；marker 存在期间 doctor 与引擎治理动词必须拒跑并点名 marker；失败必须逆序回滚不留半装态。
   验收：install 测试组（dry-run 零写入/marker 拒跑/故障注入回滚）全绿。
 - REQ-066 自我 eval 套件：当脚手架自身改动时，tests/eval/ 必须提供 ≥20 个代表性任务，分 capability（低通过爬坡）与 regression（近 100% 防回退）两套；regression 套必须进 CI。
-  状态：planned(P10)
   验收：eval 测试组（任务数 ≥20/两套分列/regression 在 CI 电池内）全绿。
 - REQ-067 需求生命周期标记：当需求块内含 planned 状态标记（"状态"冒号后接 planned 与括号包裹的 phase 编号）时，spec lint 必须照常做可判定性检查且标记缺 phase 编号必须报 PLANNED_NO_PHASE（exit 1）；trace 必须把 planned 需求排除出覆盖率分母（零 active 时覆盖率为空真 1）、单独报告 planned 计数；planned 需求被 tests/ 引用必须报 PLANNED_HAS_TESTS 警告。
   验收：tests/spec.test.mjs「需求生命周期标记 planned」用例组全绿（红测先行于实现）。
