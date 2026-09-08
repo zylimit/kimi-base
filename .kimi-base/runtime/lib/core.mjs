@@ -6,7 +6,7 @@ import { lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'n
 import path from 'node:path';
 import process from 'node:process';
 
-export const TOOL_VERSION = 'kimi-base/2.0.0';
+export const TOOL_VERSION = 'kimi-base/3.0.0';
 
 export class HarnessError extends Error {
   constructor(message, code = 'HARNESS_ERROR', exitCode = 1, details = undefined) {

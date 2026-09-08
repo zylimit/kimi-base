@@ -1,6 +1,6 @@
 {
   "name": "kimi-base",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "AI 编程 harness 开发脚手架：需求质量、架构看护、五性治理、证据优先的质量门禁",
   "keywords": ["harness", "governance", "quality-gates", "architecture", "kimi-code"],
   "license": "MIT",

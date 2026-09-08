@@ -1,0 +1,6 @@
+{
+  "_comment": "strength.json 种子（REQ-051/052，ADR-0008）：install 时缺省落地为 .kimi-base/strength.json，upgrade 永不覆盖。四内置档 explore/rapid/balanced/strict 的逐轴定义内置在引擎（strength list 查看）；profile 选当前档（缺省 balanced）；rollout=shadow 只报告不阻断（既有项目平滑接入的迁移模式），改 enforce 启用执法（生效档 completionMode=forbidden 时 task complete exit 2）；customProfiles 自定义档 extends 具名档、逐轴只收紧——任何降级在配置期报 STRENGTH_WEAKENING exit 1。下方 hardened 是示例自定义档（可删可改）。",
+  "version": 1,
+  "profile": "strict",
+  "rollout": "enforce"
+}

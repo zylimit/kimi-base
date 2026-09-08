@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## v3.0.0（2026-09-08）
+
+对标并超越 dsh-base/cc-base/codex-base 的 v3 重构（P0–P11，结构化对抗评审逐批 ACCEPT）：强度策略引擎（四档×12 轴、extends 只收紧、floor 只升不降、policyHash 绑证据）；Receipt v2 绑定面 + fast 证据贷款账本 + 可提交证据模式（证据可移植性为家族独有）；CLI 契约注册表；discover 真实仓健壮性（SCC 凝聚）；feedback 引擎化；沟通桥梁层（认知标注四态/交互深度四档/业务含义过链/记忆依据链）；三层反馈分级；渐进采用阶梯；棘轮持久化；安装器事务锁；自我 eval 套件。证据：421 行为测试 + selftest 27/27 + run-eval regression 20/20 全绿；release 八条件全 [x] READY。
+
+### Added
+
+- 强度策略引擎：`strength list/status/set/explain`；四内置档（explore/rapid/balanced/strict）× 12 封闭控制轴；extends 逐轴只收紧（STRENGTH_WEAKENING 配置期拒绝）；floor（risk/operation/attribute/path）只升不降；shadow 迁移模式；decision log；explore 档 completionMode=forbidden 阻断 task complete。
+- Receipt v2：回执绑定 policyHash/engineHash/catalogHash（收紧即 stale exit 4）；fast 窗口证据贷款账本（DEFERRED 入哈希链、关窗/过期/轮转/截尾均不清债、唯一偿还=fresh PASS）；可提交证据模式（evidence.mode=committed，clone 验链直接通过，家族独有）。
+- CLI 契约注册表（cli-contracts.mjs 单源派生 dispatch/help/flag 校验；重复/空值/吞 token 三类静默错误转 exit 1）。
+- feedback 引擎化：`feedback record/list/scan/propose`（机器计数+聚类毕业候选+人确认落地）。
+- 沟通桥梁层（软层）：认知标注四态（[确认]/[推断]/[建议]/[未知]，spec lint 机械检查）；product-spec-builder 方法层重写（向人学业务四线/答案解析器/情境复述收敛/纠正三段式）；交互深度四档（直推/确认/探索/委托）；派单第七字段 Business Context + 需求存疑回流通道；记忆依据链（Decisions 三字段+supersede 链）。
+- 评审强化：authorship 机器执法（作者自审拒出 ACCEPT、无数据诚实标注）；静态发现入 review pack；review 消费强度策略轴。
+- 三层反馈分级（matrix 检查 tier inner/middle/outer；protected 禁 outer）；渐进采用阶梯（discover --level L0-L3）；棘轮 bestEver 持久化；安装器 maintenance marker（wx 原子独占，install/upgrade/uninstall 三面）。
+- 自我 eval 套件：tests/eval/ 23 任务 + audit/run-eval.mjs（regression 防回退入 CI，capability 爬坡不阻断）。
+- CI：GitLab 模板变体；GitHub 模板定时空跑 + 汇总判定。
+- nextStep 修复指令体（gate/quality/dod 的 FAIL/BLOCKED 全部带可执行修复命令）；quarantine 原语统一（损坏运行态隔离+记账，并发竞抢安全）。
+
+### Fixed
+
+- discover 真实仓四缺陷（重复模块/环不处理/tier 不重算/让位崩溃）——38.7 万行真实仓全链路（discover→lint 0 overlap→arch 零新债）走通。
+- 账本与回执的 fail-open 面十个（伪造镜像/轮转清债/多塞键绕过/归档零鉴权/截尾灭迹等），评审五轮全部根因修复并红测+变异核查锁定。
+- docs/COMMUNICATION-LAYER.md 与 docs/evals/p11-ab-test.md：软层审计取证与 A/B 情境检验（新版隐性需求召回 7/7 vs 旧版 5/7）。
+
 ## v2.0.0（2026-09-02）
 
 对标并超越 dsh-base 的全仓重构（P1–P7c）。源布局=安装布局自托管；三面执法；评审/记忆/需求治理引擎化；退出码契约 v2。证据：188 行为测试（7 文件）+ selftest 16/16 全绿；catalog lint / arch check --scan / adr check / manifest --check / doctor / pack-check / spec lint（50 REQ）/ trace（100%）/ dod / sync-check 全 exit 0。
