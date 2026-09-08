@@ -6,7 +6,7 @@ import { doctorCommand, isSourceRepo, manifestCommand, packCheckCommand } from '
 import { adrCheckRun, archBaselineWrite, archCheckRun, archTrend } from './arch.mjs';
 import { assessBudget } from './budget.mjs';
 import { lintCatalog } from './catalog.mjs';
-import { CONTRACTS, GLOBAL_FLAGS, STRENGTH_CONTRACT } from './cli-contracts.mjs';
+import { CONTRACTS, CONTRACT_FLAG_EXTENSIONS, GLOBAL_FLAGS, STRENGTH_CONTRACT } from './cli-contracts.mjs';
 import { cochangeAnalysis } from './cochange.mjs';
 import { findProjectRoot, loadContext, requireProjectRoot } from './config.mjs';
 import { buildContextPack, impactAnalysis } from './context.mjs';
@@ -27,7 +27,7 @@ import { releaseReadiness } from './release.mjs';
 import { REVIEW_STAGES, backlogAdd, backlogList, recordBlue, recordLens, reviewPack, reviewStart, reviewStatus, reviewTeam, reviewVerdict, stageOfLens } from './review.mjs';
 import { agentsLint, rulesAudit, skillsLint, specLint, specView, traceRequirements } from './scan.mjs';
 import { selftestCommand } from './selftest.mjs';
-import { updateState } from './state.mjs';
+import { assertNoMaintenance, updateState } from './state.mjs';
 import { BUILTIN_PROFILES, PROFILE_ORDER, loadStrengthConfig, recordDecision, resolveProfiles, resolveStrength, setStrengthProfile, strengthCompletionCheck } from './strength.mjs';
 import { emptyTasks, getActiveTask, readTasks, taskCancel, taskStart } from './tasks.mjs';
 import { receiptVerify } from './verify.mjs';
@@ -82,7 +82,7 @@ hook  outward 契约保持 0（放行）/2（拦截）。
   hook <event>                     hook 调度器（pre-tool-use-bash/pre-write/stop/
                                    prompt-submit/subagent-stop/pre-compact/session-start）
   init-modules [--write]           （已废弃别名，转发 catalog discover）生成 module-catalog 骨架
-  catalog discover [--write] [--depth N]   从仓库事实推导 catalog 草案（目录分组+真实 import 边+
+  catalog discover [--write] [--depth N] [--level L0|L1|L2|L3]   从仓库事实推导 catalog 草案（目录分组+真实 import 边+
                                    tier-N 分层+命令检测；riskTier/forbidden 不猜，进 needsDecision；
                                    已有 catalog 时 --write 写 *.draft.json；无可提案 exit 3）
   cochange [--limit N] [--min-pairs N] [--ratio F]
@@ -103,16 +103,16 @@ hook  outward 契约保持 0（放行）/2（拦截）。
   rules-audit [--files a,b]        宪法执法率审计（默认纯建议；rulesAudit.maxUnenforced 超限 exit 1）
   skills-lint                      .kimi-code/skills 契约（name==目录/description/体积/重名；error exit 1）
   agents-lint                      根 AGENTS.md 必备与体积预算（>6000 字节 exit 1，REQ-059）
-  dod                              Definition of Done 静态电池（catalog/skills/agents/spec/adr/
-                                   fitness --all/trace/receipt verify/arch check；任一 FAIL exit 2，
-                                   仅降级 exit 3）
+  dod                              Definition of Done 电池（静态电池 + matrix 检查按
+                                   inner/middle/outer 三层分组；inner/middle FAIL exit 2，
+                                   outer FAIL 响亮可见不阻断，仅降级 exit 3）
   selftest                         运行时自身冒烟
   help                             本帮助
 
 每个动词支持 --help 查看细则。未知 flag 一律 exit 1 并列出该动词的合法 flag。`;
 
 const HELP_VERBS = {
-  install: `install <target> [--dry-run] [--hooks]\n  把 <源仓>/.kimi-base/ 与 .kimi-code/ 复制面事务性安装进 target（源布局=安装布局）；\n  种子配置（harness/module-catalog/verification-matrix 的 example、AGENTS.md）仅缺省时写入。\n  staging + 逐文件备份 + post-hash 校验 + 失败逆序 rollback。\n  --hooks：安装后挂载第二道闸——git config core.hooksPath .kimi-base/githooks\n  + 三钩子 chmod 755 + git add --chmod=+x（目标非 git 仓 = 响亮降级，不回滚安装）。\n  故障注入：KIMI_BASE_INSTALL_FAIL_AFTER=<n>（测试用）。\n  写 .kimi-base/state/install-receipt.json。`,
+  install: `install <target> [--dry-run] [--hooks]\n  把 <源仓>/.kimi-base/ 与 .kimi-code/ 复制面事务性安装进 target（源布局=安装布局）；\n  种子配置（harness/module-catalog/verification-matrix 的 example、AGENTS.md）仅缺省时写入。\n  staging + 逐文件备份 + post-hash 校验 + 失败逆序 rollback。\n  REQ-065 maintenance marker：事务执行期间写 .kimi-base/state/maintenance.json，\n  正常完成/回滚后移除（只删自己 installId 的 marker）；marker 已存在即拒跑（exit 3，\n  防并发互踩），存在期间 doctor 与治理动词拒跑（exit 3 并点名 marker）。\n  --hooks：安装后挂载第二道闸——git config core.hooksPath .kimi-base/githooks\n  + 三钩子 chmod 755 + git add --chmod=+x（目标非 git 仓 = 响亮降级，不回滚安装）。\n  故障注入：KIMI_BASE_INSTALL_FAIL_AFTER=<n>（测试用）。\n  写 .kimi-base/state/install-receipt.json。`,
   upgrade: `upgrade <target> [--dry-run] [--hooks]\n  LF 归一化 SHA-256 区分框架基线与用户定制：\n  未定制→安全升级；已定制→保留并写 <file>.kimi-base-new；obsolete 仅未定制才删。\n  --hooks：同 install——（重）挂载 core.hooksPath 并刷新三钩子可执行位。`,
   uninstall: `uninstall <target> [--dry-run]\n  仅删除与安装清单哈希一致的文件；用户定制的一律保留并列出。`,
   manifest: `manifest --write|--check\n  生成/校验源仓 FRAMEWORK-MANIFEST.json（.kimi-base/+.kimi-code/ 复制面稳定资产；\n  排除 state/、源仓自身治理配置、*.kimi-base-new、私密 feedback）。`,
@@ -124,9 +124,9 @@ const HELP_VERBS = {
   waiver: `waiver create --check K --approver X --reason R --expires ISO --compensation C
 waiver list
   quality waiver 的顶层别名（两种叫法都合法），语义与 quality waiver 完全一致；详见 quality --help。`,
-  arch: `arch check [--scan]\n  声明图（环/禁令/分层方向）恒查；--scan 扫描真实 import 边（JS/TS/Py/Go/Java/\n  Kotlin/C#/Rust/Ruby/PHP/Swift）对照声明图。发现违规 exit 1；非 git 仓 = 降级 exit 3（无法测量）。\narch baseline --write [--reason "..."]\n  存量违规固化为 .kimi-base/arch-baseline.json（每条带 reason，进 git 可评审）；\n  新债零容忍；已还清条目标 stale 要求删除。\narch trend --record|--gate\n  漂移指标快照与棘轮门：当前指标对比逐指标历史最优（best-ever），回弹 exit 1；\n  无快照时 gate 通过并注明 baseline:true（先 --record 建立基线）。`,
+  arch: `arch check [--scan]\n  声明图（环/禁令/分层方向）恒查；--scan 扫描真实 import 边（JS/TS/Py/Go/Java/\n  Kotlin/C#/Rust/Ruby/PHP/Swift）对照声明图。发现违规 exit 1；非 git 仓 = 降级 exit 3（无法测量）。\narch baseline --write [--reason "..."]\n  存量违规固化为 .kimi-base/arch-baseline.json（每条带 reason，进 git 可评审）；\n  新债零容忍；已还清条目标 stale 要求删除。\narch trend --record|--gate\n  漂移指标快照与棘轮门：当前指标对比逐指标历史最优（best-ever），回弹 exit 1；\n  REQ-064：历史最优显式持久化为 arch-trend.json 的 bestEver 独立字段，\n  --gate 只信持久化的 bestEver——样本截断不抬天花板，还债后天花板永降；\n  无快照时 gate 通过并注明 baseline:true（先 --record 建立基线）。`,
   adr: `adr check\n  扫描 docs/adr/*.md（或 harness.json adrDir）：活跃 ADR 必须有 Enforced-by: 行，\n  引用必须是真实 check id / fitness 规则，或显式 manual: 前缀；幽灵引用 exit 1。`,
-  catalog: `catalog lint [--paths a,b]\n  每条 git tracked 路径必须归属某 module / globalPaths / 带 reason 的 ignored；\n  拒绝 catch-all（裸 **）；OVERLAP/DANGLING_DEP/UNJUSTIFIED_TIER 全拦（exit 1）。\n  非 git 仓且无 --paths = 降级 exit 3。\ncatalog discover [--write] [--depth 2]\n  从仓库事实推导 catalog 草案：源码目录分组（≥2 文件成组，顶层目录兜底）、\n  真实 import 边推导 dependsOn、tier-N 位置分层（tier-1 最内层=无依赖基础层）、\n  构建清单命令检测（package.json/pyproject/go.mod/Cargo/Makefile）、\n  生产源码属性信号提案（封顶 high，≥2 文件或 ≥2 词才成提案，测试夹具不触发）。\n  猜不了的字段（属性档位/forbiddenDependencies/层名/矩阵接线）进 needsDecision，绝不替人决定。\n  --write：已有 catalog 写 module-catalog.draft.json，否则写 module-catalog.json。\n  无可提案（非 git/空树/无目录成组）→ exit 3。init-modules 是废弃别名，转发本命令。`,
+  catalog: `catalog lint [--paths a,b]\n  每条 git tracked 路径必须归属某 module / globalPaths / 带 reason 的 ignored；\n  拒绝 catch-all（裸 **）；OVERLAP/DANGLING_DEP/UNJUSTIFIED_TIER 全拦（exit 1）。\n  非 git 仓且无 --paths = 降级 exit 3。\ncatalog discover [--write] [--depth 2] [--level L0|L1|L2|L3]\n  从仓库事实推导 catalog 草案：源码目录分组（≥2 文件成组，顶层目录兜底）、\n  真实 import 边推导 dependsOn、tier-N 位置分层（tier-1 最内层=无依赖基础层）、\n  构建清单命令检测（package.json/pyproject/go.mod/Cargo/Makefile）、\n  生产源码属性信号提案（封顶 high，≥2 文件或 ≥2 词才成提案，测试夹具不触发）。\n  渐进采用阶梯（REQ-063，缺省 L1）：L0 最小钩子面（裁掉 layers/attributes/属性提案，\n  不生成 verification-matrix.json）；L1 现状全量草案；L2 保留 layers+attributeProposals\n  （五性/arch 治理面）；L3 全量+fleet 仓群治理引用。非法 level exit 1 并列合法集。\n  猜不了的字段（属性档位/forbiddenDependencies/层名/矩阵接线）进 needsDecision，绝不替人决定。\n  --write：已有 catalog 写 module-catalog.draft.json，否则写 module-catalog.json。\n  无可提案（非 git/空树/无目录成组）→ exit 3。init-modules 是废弃别名，转发本命令。`,
   fitness: `fitness [--path p1,p2] [--staged] [--all]\n  内置五规则：no-secret-literal(error)、no-pii-in-logs(error)、no-silent-failure(error)、\n  no-unbounded-retry(warning)、no-unreferenced-deferral(warning，safety>=high 模块)。\n  抑制：同行注释 kimi-base-ignore: <rule>（留痕）。error 级命中 exit 1。\n  扫描面优先级：--path > --all（全仓 tracked∪未跟踪，dod 用）> --staged（暂存区，pre-commit 用）\n  > 默认工作树变更面；非 git 且无 --path = 降级 exit 3。`,
   impact: `impact <paths...> 或 impact --git [--risk R]\n  变更路径→模块归属→反向依赖闭包→受影响检查计划（planHash 含 risk）。\n  unmapped/shared/global/截断 → 保守扩散到全模块（宁可全跑不可漏测）。`,
   context: `context pack [--budget 60000] [--focus "glob,glob"]\n  预算化最小上下文包：focus+impact 选面；DENY 清单（.env/*.pem/id_rsa/.ssh/.aws/\n  *.key/*secret*）永不入包；装不下的进 omitted 显式报告；输出含 packHash。`,
@@ -153,7 +153,7 @@ waiver list
   'rules-audit': `rules-audit [--files a,b]（默认 AGENTS.md）\n  规则行（编号/子弹/表格行，≥25 字符，代码围栏外）分类：backtick token 能解析到\n  matrix check id / 引擎动词 / fitness 规则 id = ENFORCED；行/段声明 提示词|prompt-only|(P)\n  = declared-prompt-only；其余 = UNENFORCED 发现。默认纯建议恒 exit 0；\n  harness.json rulesAudit.maxUnenforced 设数字后超限 exit 1。报告执法率。`,
   'skills-lint': `skills-lint\n  .kimi-code/skills/*/SKILL.md 契约：name kebab-case 且 == 目录名；description 必填、\n  >500 字符 error、>220 warning；正文 >24KB warning；重名 error；对话型 skill（内置清单）\n  缺「对话示例」/「反例」节 warning（REQ-075 坡道）。error → exit 1。`,
   'agents-lint': `agents-lint\n  根 AGENTS.md 必须存在（缺失 error）；>6000 字节 error（REQ-059 宪法瘦身预算：\n  宪法只放不变量+指针，细则下沉 .kimi-base/rules/）。error → exit 1。`,
-  dod: `dod\n  Definition of Done 静态电池（子进程跑真实 CLI，定义唯一事实源 = lib/hygiene.mjs DOD_STEPS）：\n  catalog lint → skills-lint → agents-lint → spec lint → adr check → fitness --all（全仓）\n  → trace → receipt verify → arch check。每步归级 PASS/FAIL/DEGRADED（1/2=FAIL、\n  3=DEGRADED、4=STALE 按 FAIL 计）。任一 FAIL → exit 2；无 FAIL 但有 DEGRADED → exit 3\n  （降级响亮报告，绝不静默）；全 PASS → 0。pre-push 钩子与 CI 的第二/三道闸。`,
+  dod: `dod\n  Definition of Done 电池（子进程跑真实 CLI，静态电池定义唯一事实源 = lib/hygiene.mjs DOD_STEPS）：\n  catalog lint → skills-lint → agents-lint → spec lint → adr check → fitness --all（全仓）\n  → trace → receipt verify → arch check；外加 verification-matrix 全部检查（REQ-062）。\n  输出按三层分组：inner（commit 前秒级可阻塞）/ middle（评审级可阻塞）/ outer（趋势健康\n  信号性）。每步归级 PASS/FAIL/DEGRADED/STALE（1/2=FAIL、3=DEGRADED、4=STALE 不按 FAIL 计）。\n  inner/middle 层任一 FAIL → exit 2；outer 层 FAIL 响亮可见但不阻断；无阻断 FAIL 但有\n  DEGRADED → exit 3；全 PASS → 0。pre-push 钩子与 CI 的第二/三道闸。`,
   selftest: `selftest\n  运行时自身冒烟：哈希/指纹/回执往返/分类器样例/原子写/frontmatter/import 提取。`
 };
 
@@ -175,6 +175,10 @@ const VALUE_FLAG_NAMES = new Set(VALUE_FLAG_NAMES_GLOBAL);
 for (const contract of [...Object.values(CONTRACTS), STRENGTH_CONTRACT]) {
   for (const [name, spec] of Object.entries(contract.flags)) if (spec.kind === 'value') VALUE_FLAG_NAMES.add(name);
 }
+// REQ-063 扩表 flag（单列于 CONTRACT_FLAG_EXTENSIONS）同样参与 value 吞值解析。
+for (const extension of Object.values(CONTRACT_FLAG_EXTENSIONS)) {
+  for (const [name, spec] of Object.entries(extension)) if (spec.kind === 'value') VALUE_FLAG_NAMES.add(name);
+}
 
 function firstVerbToken(argv) {
   for (let index = 0; index < argv.length; index += 1) {
@@ -195,13 +199,23 @@ function contractOf(verb) {
   return CONTRACTS[verb] ?? (verb === 'strength' ? STRENGTH_CONTRACT : undefined);
 }
 
+// REQ-063：动词的完整可接受 flag 集 = 契约 flags + 扩表 flags（CONTRACT_FLAG_EXTENSIONS）。
+// 注意：未知 flag 报文的"支持的 flag"清单只列契约 flags（现状表测试逐集合锁定），
+// 扩表 flag 在 <verb> --help 细则里披露。
+function acceptedFlagsOf(verb) {
+  const contract = contractOf(verb);
+  return { ...contract?.flags, ...(CONTRACT_FLAG_EXTENSIONS[verb] ?? {}) };
+}
+
 function assertContract(verb, args, flags, duplicates, emptyValues) {
   const contract = contractOf(verb);
   if (!contract) return; // 未知动词走 default 分支报"未知动词"
-  const allowed = new Set([...Object.keys(contract.flags), ...Object.keys(GLOBAL_FLAGS)]);
+  const accepted = acceptedFlagsOf(verb);
+  const allowed = new Set([...Object.keys(accepted), ...Object.keys(GLOBAL_FLAGS)]);
+  const listed = [...Object.keys(contract.flags), ...Object.keys(GLOBAL_FLAGS)];
   for (const key of Object.keys(flags)) {
     if (!allowed.has(key)) {
-      throw usageError(`未知 flag：--${key}；动词 ${verb} 支持的 flag：${[...allowed].map((item) => `--${item}`).join(' ')}`);
+      throw usageError(`未知 flag：--${key}；动词 ${verb} 支持的 flag：${listed.map((item) => `--${item}`).join(' ')}`);
     }
   }
   for (const name of duplicates) {
@@ -308,7 +322,7 @@ async function dispatchCommand(argv) {
   // strength（REQ-052）契约单列于 STRENGTH_CONTRACT：CONTRACTS 键集被 REQ-056 现状表
   // 行为测试锁定（40 dispatch verb + help），校验/解析派生方式与契约条目完全一致。
   const contract = verb ? contractOf(verb) : undefined;
-  const valueFlags = new Set([...VALUE_FLAG_NAMES_GLOBAL, ...Object.entries(contract?.flags ?? {}).filter(([, spec]) => spec.kind === 'value').map(([name]) => name)]);
+  const valueFlags = new Set([...VALUE_FLAG_NAMES_GLOBAL, ...Object.entries(verb ? acceptedFlagsOf(verb) : {}).filter(([, spec]) => spec.kind === 'value').map(([name]) => name)]);
   const { positional, flags, duplicates, emptyValues } = parseCliArgs(argv, { valueFlags });
   const [, sub, ...rest] = positional;
   if (!verb || verb === 'help' || flags.help === true && !verb) {
@@ -322,7 +336,13 @@ async function dispatchCommand(argv) {
   // 用法校验必须先于项目根解析（REQ-056）：未知/重复/空值 flag、互斥、位置参数越界。
   assertContract(verb, positional.slice(1), flags, duplicates, emptyValues);
   const projectStart = flags.project ? path.resolve(String(flags.project)) : process.cwd();
-  const needProject = async () => loadContext(await requireProjectRoot(projectStart));
+  // REQ-065：maintenance marker 存在期间治理动词一律拒跑（exit 3 降级语义）——
+  // 维护中的安装面是未知态，任何治理判定都不可信。
+  const needProject = async () => {
+    const ctx = await loadContext(await requireProjectRoot(projectStart));
+    await assertNoMaintenance(ctx.root);
+    return ctx;
+  };
 
   // strength（REQ-052）：独立于 switch 路由——selftest contractCheck 双向钉死的路由集
   // 与 CONTRACTS 键集同被现状表测试锁定，strength 待测试作者扩表后方可注册为 case。
@@ -535,7 +555,7 @@ async function dispatchCommand(argv) {
         if (!mode) throw usageError('arch trend 需要 --record 或 --gate');
         const result = await archTrend(ctx, mode);
         if (mode === 'record') {
-          printResult('arch trend 已记录', [`快照：${JSON.stringify(result.recorded)}`, `累计快照：${result.total}`]);
+          printResult('arch trend 已记录', [`快照：${JSON.stringify(result.recorded)}`, `累计快照：${result.total}`, `历史最优（bestEver 已持久化）：${JSON.stringify(result.bestEver)}`]);
           return 0;
         }
         printResult(result.ok ? 'arch trend --gate 通过' : 'arch trend --gate 触发棘轮（exit 1）', [
@@ -566,11 +586,14 @@ async function dispatchCommand(argv) {
       }
       if (sub === 'discover') {
         const depth = flags.depth !== undefined ? Number(flags.depth) : 2;
-        const result = await discoverCatalog(ctx, { depth });
+        const level = flags.level !== undefined ? String(flags.level) : 'L1';
+        const result = await discoverCatalog(ctx, { depth, level });
         if (!flags.write) {
           printResult('catalog discover（dry-run；--write 落盘）', [
+            `级别：${result.level}（渐进采用阶梯 L0 最小钩子面 / L1 缺省现状 / L2 +五性·arch / L3 全量+fleet）`,
             `tracked ${result.trackedPaths} 路径 → 提案模块 ${result.proposedModules} 个；真实 import 边 ${result.realEdges} 条（未解析 specifier ${result.unresolvedSpecifiers} 个，如实计数）`,
             `检测到检查命令 ${result.detectedChecks.length} 个：${result.detectedChecks.map((item) => item.id).join(', ') || '无'}`,
+            ...(result.fleet ? [`fleet：${result.fleet}`] : []),
             ...result.needsDecision.map((item) => `- needsDecision ${item.field}：${item.why}`),
             ...(result.stillUnmappedCount ? [`- 仍无归属 ${result.stillUnmappedCount} 个：${result.stillUnmapped.join(', ')}`] : []),
             JSON.stringify({ draft: result.draft, attributeProposals: result.attributeProposals, detectedChecks: result.detectedChecks, needsDecision: result.needsDecision }, null, 2)
@@ -579,8 +602,10 @@ async function dispatchCommand(argv) {
         }
         const written = await discoverWrite(ctx, result);
         printResult('catalog discover 已写入', [
+          `级别：${result.level}`,
           `路径：${written.written}${written.isDraft ? '（已有 catalog，草案写为 draft——人工合并后才生效；绝不覆盖人工策展）' : ''}`,
-          `模块数：${written.modules}；needsDecision ${result.needsDecision.length} 项待人决（见 dry-run 输出）`
+          `模块数：${written.modules}；needsDecision ${result.needsDecision.length} 项待人决（见 dry-run 输出）`,
+          ...(result.fleet ? [`fleet：${result.fleet}`] : [])
         ]);
         return 0;
       }
@@ -928,17 +953,35 @@ async function dispatchCommand(argv) {
     case 'dod': {
       const ctx = await needProject();
       const result = await runDod(ctx);
+      // REQ-062 分层分组显示：inner（commit 前秒级可阻塞）→ middle（评审级可阻塞）→
+      // outer（趋势健康信号性，FAIL 响亮可见但不阻断判定）。
+      const TIER_LABELS = { inner: 'commit 前秒级可阻塞', middle: '评审级可阻塞', outer: '趋势健康信号性（FAIL 不阻断）' };
       const lines = [
-        `统计：PASS=${result.counts.PASS} FAIL=${result.counts.FAIL} DEGRADED=${result.counts.DEGRADED} STALE=${result.counts.STALE}`,
-        ...result.steps.flatMap((step) => [
-          `- ${step.status} ${step.id}（exit ${step.exitCode ?? 'N/A'}，${(step.durationMs / 1000).toFixed(1)}s）${step.reason ? `：${step.reason}` : ''}${step.note ? `；note ${step.note}` : ''}${step.nextStep ? `；nextStep：${step.nextStep}` : ''}`,
-          ...(step.outputTail ?? []).map((line) => `    ${line}`)
-        ])
+        `统计：PASS=${result.counts.PASS} FAIL=${result.counts.FAIL} DEGRADED=${result.counts.DEGRADED} STALE=${result.counts.STALE}${result.counts.OUTER_FAIL ? `（其中 outer 层信号性 FAIL=${result.counts.OUTER_FAIL}，不阻断）` : ''}`
       ];
-      if (result.counts.FAIL) lines.push('存在 FAIL 步骤：dod 未达成（exit 2）');
+      for (const tier of ['inner', 'middle', 'outer']) {
+        const group = result.steps.filter((step) => (step.tier ?? 'middle') === tier);
+        if (!group.length) continue;
+        lines.push(`== ${tier} 层（${TIER_LABELS[tier]}）==`);
+        for (const step of group) {
+          lines.push(`- ${step.status} ${step.id}（exit ${step.exitCode ?? 'N/A'}，${(step.durationMs / 1000).toFixed(1)}s）${step.reason ? `：${step.reason}` : ''}${step.note ? `；note ${step.note}` : ''}${step.nextStep ? `；nextStep：${step.nextStep}` : ''}`);
+          for (const line of step.outputTail ?? []) lines.push(`    ${line}`);
+        }
+      }
+      if (result.untiered?.length) lines.push(`warning：以下 matrix 检查缺 tier，已保守归入 middle 层（可阻塞）：${result.untiered.join(', ')}——请补标 tier（gate --dry-run 配置期面会强制）`);
+      if (result.deduped?.length) lines.push(`note：matrix 检查 ${result.deduped.join(', ')} 与静态电池同 id 且同命令面，已去重（以电池步骤为准，同一检查只跑一遍）`);
+      if (result.collapsed?.length) lines.push(`note：matrix 检查 ${result.collapsed.join(', ')} 与静态电池同 id 但命令面不同，已各自执行且同结果 PASS——重复确认折叠显示，不占步骤行（异结果会响亮单列）`);
+      if (result.counts.OUTER_FAIL) lines.push(`outer 层 FAIL ${result.counts.OUTER_FAIL} 个：趋势健康信号，响亮可见但不阻断 dod 判定（inner/middle 层 FAIL 才阻断）`);
+      if (result.counts.FAIL > result.counts.OUTER_FAIL) lines.push('存在 FAIL 步骤：dod 未达成（exit 2）');
       else if (result.counts.DEGRADED) lines.push('存在 DEGRADED 步骤：降级不是通过（exit 3），请补配置后重跑');
       if (result.counts.STALE) lines.push('存在 STALE 步骤：证据陈旧不是完整性失败——新鲜度归 release 管（receipt-fresh），完整性归 dod 管；dod 不因此阻断，但发布前必须刷新证据');
-      printResult(result.ok ? 'dod 通过' : result.counts.FAIL ? 'dod 未达成（exit 2）' : 'dod 降级（exit 3）', lines);
+      // 头条诚实（修复轮）：outer 有 FAIL 时不得是裸「dod 通过」——必须带限定与计数。
+      const headline = result.ok
+        ? (result.counts.OUTER_FAIL
+          ? `dod 通过（inner/middle 全绿；outer 有 ${result.counts.OUTER_FAIL} 项 FAIL 响亮可见——趋势健康信号不阻断）`
+          : 'dod 通过')
+        : result.counts.FAIL > result.counts.OUTER_FAIL ? 'dod 未达成（exit 2）' : 'dod 降级（exit 3）';
+      printResult(headline, lines);
       return result.exitCode;
     }
     case 'cochange': {

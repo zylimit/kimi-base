@@ -89,6 +89,8 @@ runtime 类检查（matrix check 声明 `"class":"runtime"`）额外带 `"validU
 
 尾部截断检测（head 锚）：每次账本追加后原子写 `state/ledger-head.json`（链尾 chain + 数据条目数 + fast 债务快照 + contentHash）；`receipt verify` 与 `risk scan` 对账锚与实际链尾/条目数，不一致即 TAMPERED（删尾行后剩余链仍是合法前缀，锚是长度事实源）。**残余风险如实声明**：无密钥的本地账本只能 tamper-evident 不能 tamper-proof——决心改写者可以连锚带链一起重写；`evidence.mode: "committed"` 把账本、回执与 head 锚纳入 git 提交史，改写必须与提交史对账，才是真正的缓解。
 
+`arch-trend.json`（漂移棘轮）同属本地状态文件，残余面同形：`bestEver` 持久化值被抬高即天花板松动——`arch trend --gate` 与现存 snapshots 逐指标交叉核对取更严者并响亮报「篡改/腐化嫌疑」；snapshots 为空时核对退化（输出如实标注「persisted bestEver 为唯一依据」），整文件重写不可防，committed 趋势文件 + git 提交史是缓解。
+
 ## 6. waiver
 
 存储于 `.kimi-base/state/waivers.json`（`{version:1, waivers:[…]}`），单条字段：

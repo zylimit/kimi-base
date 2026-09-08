@@ -23,3 +23,5 @@ export const STRENGTH_DECISIONS_FILE = 'strength-decisions.jsonl';
 
 export const INSTALL_MANIFEST_REL = `${STATE_DIR}/install-manifest.json`;
 export const INSTALL_RECEIPT_REL = `${STATE_DIR}/install-receipt.json`;
+// REQ-065：install/upgrade 执行期间的维护 marker；存在期间 doctor 与治理动词拒跑（exit 3）。
+export const MAINTENANCE_MARKER_REL = `${STATE_DIR}/maintenance.json`;

@@ -13,12 +13,13 @@ import { fastModeStatus } from './fast.mjs';
 import { runFitness } from './fitness.mjs';
 import { git, gitFingerprint, requireGit } from './git.mjs';
 import { appendLedgerRecord, ensureStateGitignore, writeEvidence, writeReceiptFile } from './ledger.mjs';
-import { isProtectedCheck, loadMatrix, requiredPlan, topoOrderChecks } from './matrix.mjs';
+import { isProtectedCheck, loadMatrix, requiredPlan, topoOrderChecks, assertCheckTiers } from './matrix.mjs';
 import { STATE_DIR } from './paths.mjs';
 import { stateFile, withFileLock } from './state.mjs';
 import { getActiveTask } from './tasks.mjs';
 
-function checkInvocation(check) {
+// 导出供 dod 分层电池复用（REQ-062）：检查 → 调用形态的唯一推导处，禁止第二份拷贝。
+export function checkInvocation(check) {
   if (check.builtin) return { builtin: check.builtin, display: `builtin:${check.builtin}`, argvHash: sha256(stableJson({ builtin: check.builtin })) };
   if (check.executable) {
     return { executable: check.executable, args: check.args ?? [], shell: false, display: [check.executable, ...(check.args ?? [])].join(' '), argvHash: sha256(stableJson({ executable: check.executable, args: check.args ?? [] })) };
@@ -221,6 +222,8 @@ export async function runGate(ctx, options = {}) {
   };
   const planHash = sha256(stableJson(plan));
   if (options.dryRun) {
+    // REQ-062：dry-run 是矩阵配置校验面——tier 必填在此执法（缺失/非法 exit 1 点名检查 id）。
+    assertCheckTiers(matrix);
     return { dryRun: true, plan, planHash, task: task?.id ?? null, note: 'dry-run 只列计划不执行' };
   }
   await requireGit(ctx, 'gate');

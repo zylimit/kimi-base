@@ -1,5 +1,19 @@
 # Product Spec 变更日志
 
+## v3.1.6（2026-09-08）P8 激活：REQ-062/063/064/065 分层反馈与渐进采用
+
+### 为什么改
+
+P8 落地：三层反馈分级（inner/middle/outer）、渐进采用阶梯（--level L0-L3）、棘轮 best-ever 持久化、安装器 maintenance marker。按 REQ-067 机制摘 planned 标记。
+
+### 变更
+
+- REQ-062（三层反馈分级）摘 planned(P8) 标记：matrix 检查 schema 增 `tier: inner|middle|outer`（非法值任何入口配置期拒绝 exit 1；缺失的必填执法在 `gate --dry-run` 配置校验面与 dod——存量 tierless 矩阵执行面容忍并归入 middle 层响亮提示）；dod 把 matrix 检查按层纳入组织（复用 DOD_STEPS 单源扩 tier 字段），输出按 inner/middle/outer 分组，outer 层 FAIL 响亮可见但不阻断判定（exit 0），inner/middle FAIL 维持 exit 2。验收 tests/layers-adoption.test.mjs REQ-062 段 5 用例全绿。
+- REQ-063（渐进采用阶梯）摘 planned(P8) 标记：`catalog discover --level L0|L1|L2|L3`（缺省 L1，与现状逐字节一致；非法值 exit 1 列合法集）；L0 裁掉 layers/attributes/属性提案面且不生成 verification-matrix.json；L2 保留 layers+attributeProposals；L3 输出含 fleet 仓群治理引用。flag 经 cli-contracts 的 CONTRACT_FLAG_EXTENSIONS 单列导出接线（循 STRENGTH_CONTRACT 先例，CONTRACTS 键集与 flag 表现状锁定）。验收 tests/layers-adoption.test.mjs REQ-063 段 5 用例全绿。
+- REQ-064（棘轮 best-ever 持久化）摘 planned(P8) 标记：arch trend --record 把逐指标历史最优显式持久化为 arch-trend.json 的 `bestEver` 独立字段；--gate 判定只信持久化的 bestEver（旧格式状态文件退化回快照现算 min）——样本截断不抬天花板，还债后 bestEver 单调不升。验收 tests/layers-adoption.test.mjs REQ-064 段 2 用例全绿。
+- REQ-065（安装器锁与 marker）摘 planned(P8) 标记：install/upgrade 事务执行期间写 .kimi-base/state/maintenance.json（正常完成/回滚后移除；进程中断遗留即"维护中"证据）；marker 存在期间 doctor 与全部治理动词（经 needProject）拒跑并点名 marker（exit 3 降级语义）；dry-run 零写入与故障注入逆序回滚回归保持。验收 tests/layers-adoption.test.mjs REQ-065 段 3 用例全绿。
+- 版本号 v3.1.5 → v3.1.6。
+
 ## v3.1.5（2026-09-08）REQ-035 阈值与 REQ-059 对齐
 
 ### 为什么改

@@ -8,6 +8,23 @@ const PROTECTED_KINDS = new Set(['security', 'safety']);
 export const RISKS = ['low', 'medium', 'high'];
 export const BUILTIN_CHECKS = new Set(['fitness', 'arch-check', 'adr-check', 'catalog-lint']);
 
+// REQ-062 三层反馈分级：inner=commit 前秒级可阻塞 / middle=评审级可阻塞 / outer=趋势健康信号性。
+export const CHECK_TIERS = ['inner', 'middle', 'outer'];
+
+// tier 必填执法面（gate --dry-run / dod 等配置期入口调用）：缺失或非法即配置期拒绝。
+// 存量仓的 tierless 矩阵在执行面（gate 全量跑）按 legacy 容忍（dod 分组按 middle 保守归入），
+// 但 dry-run 配置校验面零容忍——新矩阵从第一天起就必须标层。
+export function assertCheckTiers(matrix) {
+  for (const check of matrix.checks ?? []) {
+    if (check.tier === undefined) {
+      throw new HarnessError(`检查 ${check.id} 缺 tier 字段（反馈层必填；合法集：${CHECK_TIERS.join('/')}——inner=commit 前秒级可阻塞，middle=评审级可阻塞，outer=趋势健康信号性）`, 'MATRIX_INVALID');
+    }
+    if (!CHECK_TIERS.includes(check.tier)) {
+      throw new HarnessError(`检查 ${check.id} 的 tier 非法：${check.tier}（合法集：${CHECK_TIERS.join('/')}）`, 'MATRIX_INVALID');
+    }
+  }
+}
+
 export function isProtectedCheck(check) {
   return PROTECTED_KINDS.has(check.kind) || (check.attributes ?? []).some((item) => PROTECTED_ATTRIBUTES.has(item));
 }
@@ -46,8 +63,18 @@ export function validateMatrix(matrix, riskChecks = null) {
     assertKnownFields(check, new Set([
       'id', 'kind', 'class', 'command', 'executable', 'args', 'builtin', 'cwd', 'platform',
       'timeoutMs', 'timeoutSec', 'dependsOn', 'resourceLocks', 'required', 'allowFastSkip',
-      'attributes', 'runtimeValidityHours', 'note'
+      'attributes', 'runtimeValidityHours', 'note', 'tier'
     ]), `check ${check.id ?? '?'}`);
+    // REQ-062：tier 写出即必须合法（非法值任何入口都拒绝）；缺失的必填执法在
+    // assertCheckTiers（gate --dry-run / dod 配置期面）——存量 tierless 矩阵执行面容忍。
+    if (check.tier !== undefined && !CHECK_TIERS.includes(check.tier)) {
+      throw new HarnessError(`检查 ${check.id} 的 tier 非法：${check.tier}（合法集：${CHECK_TIERS.join('/')}）`, 'MATRIX_INVALID');
+    }
+    // REQ-062 修复轮（C4）：protected（security/safety/privacy，kind 或认领属性命中）不得标
+    // outer——outer 是趋势健康信号层（FAIL 不阻断），保护底线永不信号性降级。
+    if (check.tier === 'outer' && isProtectedCheck({ kind: check.kind, attributes: check.attributes ?? [] })) {
+      throw new HarnessError(`检查 ${check.id} 属 protected（security/safety/privacy，kind 或认领属性命中），不得标 tier=outer——保护底线永不信号性降级（outer 层 FAIL 不阻断）`, 'MATRIX_INVALID');
+    }
     if (typeof check.id !== 'string' || !/^[a-z][a-z0-9-]*$/.test(check.id)) throw new HarnessError(`非法检查 id：${check.id}`, 'MATRIX_INVALID');
     if (ids.has(check.id)) throw new HarnessError(`检查 id 重复：${check.id}`, 'MATRIX_INVALID');
     ids.add(check.id);

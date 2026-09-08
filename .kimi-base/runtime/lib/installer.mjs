@@ -6,14 +6,15 @@
 // post-hash 校验 + 失败逆序 rollback；KIMI_BASE_INSTALL_FAIL_AFTER 故障注入。
 
 import { randomUUID } from 'node:crypto';
-import { chmod, copyFile, lstat, mkdir, readdir, readFile, realpath, rm, rmdir, stat } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, open, readdir, readFile, realpath, rm, rmdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import process from 'node:process';
-import { HarnessError, TOOL_VERSION, atomicWrite, normalizeLf, nowIso, pathExists, readJsonFile, runProcess, sha256, toPosix, usageError } from './core.mjs';
+import { HarnessError, TOOL_VERSION, atomicWrite, degradedError, normalizeLf, nowIso, pathExists, readJsonFile, runProcess, sha256, toPosix, usageError } from './core.mjs';
 import { stateGitignoreContent } from './ledger.mjs';
-import { CONFIG_REL, INSTALL_MANIFEST_REL, INSTALL_RECEIPT_REL, STATE_DIR } from './paths.mjs';
+import { CONFIG_REL, INSTALL_MANIFEST_REL, INSTALL_RECEIPT_REL, MAINTENANCE_MARKER_REL, STATE_DIR } from './paths.mjs';
+import { readMaintenanceMarker } from './state.mjs';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 // 本文件位于 <源仓>/.kimi-base/runtime/lib/installer.mjs；源仓根向上三级。
@@ -398,18 +399,59 @@ async function cleanupEmptyDirs(target, appliedDestinations) {
   }
 }
 
+// REQ-065 maintenance marker 获取/释放原语（install/upgrade/uninstall 三面共用，禁止第二份拷贝）：
+// 获取 = 预检（带 installId 详情的清晰报错快路径）+ wx 原子独占创建（EEXIST 即并发败者/残留，
+// 拒跑——硬保证）；释放 = installId 匹配才删（他人 marker 绝不误删）。
+async function acquireMaintenanceMarker(target, installId, action) {
+  const existing = await readMaintenanceMarker(target);
+  if (existing) {
+    throw degradedError(
+      `maintenance marker 已存在（${MAINTENANCE_MARKER_REL}，installId=${existing.installId ?? '?'}，since ${existing.startedAt ?? existing.since ?? '?'}）：另一 install/upgrade/uninstall 事务进行中或上次中断——拒跑以防并发互踩；确认其已结束后手动移除该 marker 再重跑`,
+      'MAINTENANCE_MODE'
+    );
+  }
+  const markerPath = await safeManagedPath(target, MAINTENANCE_MARKER_REL);
+  await mkdir(path.dirname(markerPath), { recursive: true });
+  const body = `${JSON.stringify({ version: 1, installId, action, startedAt: nowIso(), reason: `${action} 事务执行中` }, null, 2)}\n`;
+  let handle;
+  try {
+    handle = await open(markerPath, 'wx');
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      throw degradedError(
+        `maintenance marker 已存在（${MAINTENANCE_MARKER_REL}）：另一 install/upgrade/uninstall 事务进行中（并发互踩）或上次中断——拒跑；确认其已结束后手动移除该 marker 再重跑`,
+        'MAINTENANCE_MODE'
+      );
+    }
+    throw error;
+  }
+  await handle.writeFile(body);
+  await handle.close();
+  return markerPath;
+}
+
+async function releaseMaintenanceMarker(target, markerPath, installId) {
+  const current = await readMaintenanceMarker(target).catch(() => null);
+  if (current && current.installId === installId) await rm(markerPath, { force: true }).catch(() => {});
+}
+
 export async function applyInstallPlan(plan, dryRun) {
   if (dryRun) return { ok: true, dryRun: true, action: plan.action, target: plan.target, operations: plan.operations };
   await mkdir(plan.target, { recursive: true });
   const installId = `${Date.now()}-${process.pid}-${randomUUID()}`;
   const staging = await safeManagedPath(plan.target, `${STATE_DIR}/install-staging-${installId}`);
+  // REQ-065 maintenance marker：事务执行期间落 marker（.kimi-base/state/maintenance.json），
+  // 正常完成或回滚后移除；进程中断留下的 marker 让 doctor/治理动词拒跑（exit 3），
+  // 维护中的安装面是未知态，任何治理判定都不可信。先落 marker 再建 staging，
+  // 并发败者不留任何事务残留（state 空目录除外，无文件）。
+  const markerPath = await acquireMaintenanceMarker(plan.target, installId, plan.action);
+  const startedAt = nowIso();
   await mkdir(staging, { recursive: true });
   const applied = [];
   const rollbackErrors = [];
   const postVerify = [];
   const failAfter = Number.parseInt(process.env.KIMI_BASE_INSTALL_FAIL_AFTER ?? '0', 10);
   let mutationCount = 0;
-  const startedAt = nowIso();
   try {
     for (const [index, operation] of plan.operations.entries()) {
       if (!MUTATION_KINDS.has(operation.kind)) continue;
@@ -474,6 +516,10 @@ export async function applyInstallPlan(plan, dryRun) {
     };
     await atomicWrite(await safeManagedPath(plan.target, INSTALL_RECEIPT_REL), receipt).catch(() => {});
     throw new HarnessError(`${error.message}；${rollbackErrors.length ? `回滚不完整：${rollbackErrors.join(' | ')}` : '全部受管变更已逆序回滚'}`, 'INSTALL_ROLLED_BACK');
+  } finally {
+    // REQ-065：事务终结（提交或回滚）即移除 maintenance marker——但只删自己的
+    //（installId 匹配才删）；他人 marker（并发赢家/残留）绝不误删。
+    await releaseMaintenanceMarker(plan.target, markerPath, installId);
   }
 }
 
@@ -492,7 +538,14 @@ export async function planUninstall(target) {
 
 export async function applyUninstallPlan(plan, dryRun) {
   if (dryRun) return { ok: true, dryRun: true, action: 'uninstall', target: plan.target, operations: plan.operations };
+  // REQ-065 修复轮二（W4）+ 修复轮三（W5）：uninstall 是同一互斥面的事务——既过 marker
+  // 面拒跑（维护中卸载会把半装态目标拆光），自己也全程落 marker（删除中途 install
+  // 不得起跑互踩；install/治理动词经 assertNoMaintenance 面自然被拒）。
   const installId = `${Date.now()}-${process.pid}-${randomUUID()}`;
+  const markerPath = await acquireMaintenanceMarker(plan.target, installId, 'uninstall');
+  // 测试用慢速钩子（对齐 KIMI_BASE_INSTALL_FAIL_AFTER 先例）：拉长事务窗口使并发观测确定性成立。
+  const slowMs = Number.parseInt(process.env.KIMI_BASE_UNINSTALL_SLOW_MS ?? '0', 10);
+  if (Number.isFinite(slowMs) && slowMs > 0) await new Promise((resolve) => setTimeout(resolve, Math.min(slowMs, 30000)));
   const staging = await safeManagedPath(plan.target, `${STATE_DIR}/install-staging-${installId}`);
   await mkdir(staging, { recursive: true });
   const applied = [];
@@ -540,6 +593,9 @@ export async function applyUninstallPlan(plan, dryRun) {
     }
     if (!rollbackErrors.length) await safeRemoveTree(plan.target, staging, 'install-staging-').catch(() => {});
     throw new HarnessError(`${error.message}；${rollbackErrors.length ? `回滚不完整：${rollbackErrors.join(' | ')}` : '全部删除已逆序回滚'}`, 'UNINSTALL_ROLLED_BACK');
+  } finally {
+    // REQ-065（W5）：uninstall 事务终结即移除自己的 marker（installId 匹配才删）。
+    await releaseMaintenanceMarker(plan.target, markerPath, installId);
   }
 }
 

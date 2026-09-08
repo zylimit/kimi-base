@@ -1,6 +1,6 @@
 # kimi-base Product Spec
 
-版本：v3.1.3 · 状态：v3.0 重构进行中（P0-P6 已交付；P7-P10 工程面与 P11 软层并行推进） · 变更史见 `Product-Spec-CHANGELOG.md`
+版本：v3.1.6 · 状态：v3.0 重构进行中（P0-P6 已交付；P7-P10 工程面与 P11 软层并行推进） · 变更史见 `Product-Spec-CHANGELOG.md`
 
 ## 1. 定位
 
@@ -162,16 +162,12 @@
 - REQ-061 quarantine 原语：当读取任何运行态 JSON 失败（损坏/不可解析）时，引擎必须把损坏文件隔离为 .corrupt-<时间戳> 并记录事件，不得静默重建、不得静默保留按健康数据使用。
   验收：state 测试组（注入损坏 JSON→隔离+事件/不静默重建）全绿。
 - REQ-062 三层反馈分级：当 verification-matrix 声明检查时，每条检查必须标注反馈层（inner=commit 前秒级可阻塞/middle=评审级可阻塞/outer=趋势健康信号性）；dod 输出必须按层组织，outer 层失败必须响亮可见但不混入 inner 判定。
-  状态：planned(P8)
   验收：matrix/dod 测试组（三层标注强制/outer 不阻断 inner 判定但可见）全绿。
 - REQ-063 渐进采用阶梯：当执行 `catalog discover --write` 或 init 时，引擎必须支持 `--level L0|L1|L2|L3`（L0 仅 hooks / L1 +task·gate / L2 +五性·arch / L3 全量+fleet），按级别生成对应治理配置；缺省必须为 L1。
-  状态：planned(P8)
   验收：init 测试组（四档生成物差异/缺省 L1）全绿。
 - REQ-064 棘轮 best-ever 持久化：当 arch trend 记录历史时，历史最优值必须显式记录为独立字段，样本文件截断不得使最优天花板回升。
-  状态：planned(P8)
   验收：arch 测试组（截断样本后 best-ever 不回升/新债仍红/还债天花板永降）全绿。
 - REQ-065 安装器锁与 marker：当 install/upgrade 执行时，必须支持 dry-run 预演、独占锁与 maintenance marker；marker 存在期间 doctor 与引擎治理动词必须拒跑并点名 marker；失败必须逆序回滚不留半装态。
-  状态：planned(P8)
   验收：install 测试组（dry-run 零写入/marker 拒跑/故障注入回滚）全绿。
 - REQ-066 自我 eval 套件：当脚手架自身改动时，tests/eval/ 必须提供 ≥20 个代表性任务，分 capability（低通过爬坡）与 regression（近 100% 防回退）两套；regression 套必须进 CI。
   状态：planned(P10)

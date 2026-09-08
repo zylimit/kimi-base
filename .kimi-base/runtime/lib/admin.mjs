@@ -10,6 +10,7 @@ import { FITNESS_MAX_BYTES } from './fitness.mjs';
 import { MANAGED_ENTRIES, SEED_ENTRIES, SOURCE_MANIFEST, SOURCE_ROOT, buildSourceManifest, isStableAsset, managedFileHash, manifestDigestOf, manifestTextOf, readInstalledManifest, safeManagedPath, validateManifestShape, walkAssetFiles } from './installer.mjs';
 import { loadMatrix } from './matrix.mjs';
 import { CONFIG_REL, INSTALL_MANIFEST_REL, STATE_DIR } from './paths.mjs';
+import { assertNoMaintenance } from './state.mjs';
 
 // ---------- manifest / doctor / pack-check ----------
 
@@ -232,6 +233,9 @@ export async function doctorCommand(targetArgument) {
     const { errors, warnings } = await doctorSource();
     return { mode: 'source', target, ok: errors.length === 0, errors, warnings };
   }
+  // REQ-065：maintenance marker 存在期间 doctor 拒跑（exit 3 降级语义）——维护中的
+  // 安装面是未知态，完整性判定不可信。
+  await assertNoMaintenance(target);
   const ctx = await loadContext(target);
   const { errors, warnings, counts } = await doctorInstalled(ctx);
   return { mode: 'installed', target: ctx.root, ok: errors.length === 0, errors, warnings, counts };

@@ -326,8 +326,15 @@ async function proposeAttributes(ctx, modules, { maxFilesPerModule = 300, maxByt
   return proposals;
 }
 
+// REQ-063 渐进采用阶梯：L0 仅最小钩子面（无五性/arch 治理）/ L1 +task·gate（缺省，现状）/
+// L2 +五性·arch（保留 layers 与属性提案）/ L3 全量+fleet（仓群治理引用）。
+export const DISCOVER_LEVELS = ['L0', 'L1', 'L2', 'L3'];
+
 // 从仓库已有事实提出完整 catalog 草案；诚实推导不了的字段进 needsDecision。
-export async function discoverCatalog(ctx, { depth = 2 } = {}) {
+export async function discoverCatalog(ctx, { depth = 2, level: adoptionLevel = 'L1' } = {}) {
+  if (!DISCOVER_LEVELS.includes(adoptionLevel)) {
+    throw usageError(`catalog discover 的 --level 非法：${adoptionLevel}（合法集：${DISCOVER_LEVELS.join('/')}；缺省 L1）`);
+  }
   if (!Number.isInteger(depth) || depth < 1 || depth > 6) {
     throw usageError('catalog discover 的 --depth 必须是 1..6 的整数');
   }
@@ -561,10 +568,30 @@ export async function discoverCatalog(ctx, { depth = 2 } = {}) {
     needsDecision.unshift({ field: 'checks', why: '没有识别到任何构建清单，检测不到检查命令。在有任何检查之前，每道 gate 都报 BLOCKED——这是正确的：什么都没跑。' });
   }
 
+  // REQ-063 分层裁剪：L0 只留最小钩子面——裁掉五性/arch 治理面（layers/module.layer/
+  // module.attributes/attributeProposals 与对应 needsDecision），不生成 verification-matrix.json
+  //（discover 任何级别都不代写矩阵；L0 连提案面都不给）。L1 = 现状全量草案；
+  // L2 保留 layers + attributeProposals（五性/arch 治理面）；L3 额外带 fleet 仓群引用。
+  if (adoptionLevel === 'L0') {
+    delete draft.layers;
+    for (const module of draft.modules) {
+      delete module.layer;
+      delete module.attributes;
+    }
+  }
+  const governedDecisionFields = new Set(['modules[].attributes', 'layers', 'verification-matrix.json']);
+  const activeNeedsDecision = adoptionLevel === 'L0'
+    ? needsDecision.filter((item) => !governedDecisionFields.has(item.field))
+    : needsDecision;
+  const attributeProposals = adoptionLevel === 'L0' ? {} : await proposeAttributes(ctx, modules);
+
   return {
     ok: true,
+    level: adoptionLevel,
     draft,
-    attributeProposals: await proposeAttributes(ctx, modules),
+    attributeProposals,
+    // L3 全量 + fleet：仓群治理引用（fleet.json 定位：--fleet > KIMI_BASE_FLEET > 向上逐级）。
+    ...(adoptionLevel === 'L3' ? { fleet: 'L3 全量治理含仓群面：跨仓契约/影响/体检接入 fleet.json（fleet lint|impact|status|recap；无 fleet.json 时单仓模式照常工作）' } : {}),
     trackedPaths: tracked.paths.length,
     proposedModules: modules.length,
     detectedChecks,
@@ -572,7 +599,7 @@ export async function discoverCatalog(ctx, { depth = 2 } = {}) {
     unresolvedSpecifiers: scan.unresolvedImports,
     stillUnmapped: stillUnmapped.slice(0, 50),
     stillUnmappedCount: stillUnmapped.length,
-    needsDecision
+    needsDecision: activeNeedsDecision
   };
 }
 

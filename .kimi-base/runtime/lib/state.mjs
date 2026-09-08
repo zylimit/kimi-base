@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { HarnessError, atomicWrite, nowIso, pathExists, readJsonFile, sleep } from './core.mjs';
+import { HarnessError, atomicWrite, degradedError, nowIso, pathExists, readJsonFile, sleep } from './core.mjs';
+import { MAINTENANCE_MARKER_REL } from './paths.mjs';
 
 export function stateFile(ctx, relativeName) {
   if (path.isAbsolute(relativeName) || relativeName.split(/[\\/]/).includes('..')) {
@@ -138,4 +139,28 @@ export async function updateState(ctx, relativeName, defaultValue, updater) {
     await atomicWrite(filePath, next);
     return next;
   });
+}
+
+// ---------- REQ-065 maintenance marker（安装/升级维护锁） ----------
+
+// marker 存在 = install/upgrade 事务正在进行或上次中断（进程被杀来不及清理）。
+// 存在期间 doctor 与治理动词（gate 等）拒跑并点名 marker——exit 3 降级语义：
+// 维护中的安装面是未知态，任何治理判定都不可信，绝不假绿。
+export async function readMaintenanceMarker(root) {
+  try {
+    return JSON.parse(await readFile(path.join(root, MAINTENANCE_MARKER_REL), 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    if (error instanceof SyntaxError) return { reason: '（marker 不可解析，按维护中处理）' };
+    throw error;
+  }
+}
+
+export async function assertNoMaintenance(root) {
+  const marker = await readMaintenanceMarker(root);
+  if (!marker) return;
+  throw degradedError(
+    `maintenance marker 存在（${MAINTENANCE_MARKER_REL}${marker.since ?? marker.startedAt ? `，since ${marker.since ?? marker.startedAt}` : ''}）：安装/升级维护进行中或上次未完成（${marker.reason ?? '未注明原因'}）——治理动词拒跑，确认维护完成后移除该 marker 再重跑`,
+    'MAINTENANCE_MODE'
+  );
 }

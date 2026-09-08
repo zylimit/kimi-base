@@ -353,17 +353,43 @@ async function archTrendMetrics(ctx) {
   };
 }
 
+// REQ-064 修复轮（C2/C3）：bestEver 形状校验——非法形态（非对象/非数字/负数）响亮报错
+// exit 1，绝不静默禁用棘轮（"abc" 参与比较恒 false = 永放行假绿）。
+function assertBestEverShape(bestEver) {
+  if (bestEver === undefined || bestEver === null) return;
+  if (typeof bestEver !== 'object' || Array.isArray(bestEver)) {
+    throw new HarnessError(`arch-trend.json 的 bestEver 必须是逐指标对象（当前形态：${Array.isArray(bestEver) ? '数组' : typeof bestEver}）——棘轮不静默禁用；修复该字段或删除 ${ARCH_TREND_FILE} 重建基线`, 'TREND_BESTEVER_INVALID');
+  }
+  for (const [field, value] of Object.entries(bestEver)) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new HarnessError(`arch-trend.json 的 bestEver.${field} 非法：${JSON.stringify(value)}（必须是非负数字）——棘轮不静默禁用；修复该字段或删除 ${ARCH_TREND_FILE} 重建基线`, 'TREND_BESTEVER_INVALID');
+    }
+  }
+}
+
 export async function archTrend(ctx, mode) {
-  const state = await readState(ctx, ARCH_TREND_FILE, { version: 1, snapshots: [] });
+  const state = await readState(ctx, ARCH_TREND_FILE, { version: 1, snapshots: [], bestEver: {} });
+  assertBestEverShape(state.bestEver);
   if (mode === 'record') {
     const metrics = await archTrendMetrics(ctx);
     const snapshots = [...state.snapshots, metrics].slice(-200);
-    await writeState(ctx, ARCH_TREND_FILE, { version: 1, snapshots });
-    return { mode, recorded: metrics, total: snapshots.length };
+    // REQ-064：逐指标历史最优显式持久化为独立 bestEver 字段——样本截断（snapshots 滑窗
+    // 只留 200 条）不得让最优天花板回升；棘轮判定只信持久化的 bestEver，不现算 min。
+    // 修复轮（C2/C3）一致性交叉核对：bestEver 与 snapshots/当前值取三方 min——持久化值
+    // 丢失或被人为抬高时，现存快照与当前测量把它拉回真实下限（棘轮只降不升双向对齐）。
+    const bestEver = { ...(state.bestEver ?? {}) };
+    for (const field of TREND_GATED_FIELDS) {
+      const snapshotFloor = Math.min(...snapshots.map((snapshot) => snapshot[field] ?? Infinity));
+      bestEver[field] = Math.min(bestEver[field] ?? Infinity, metrics[field], snapshotFloor);
+    }
+    await writeState(ctx, ARCH_TREND_FILE, { version: 1, snapshots, bestEver });
+    return { mode, recorded: metrics, total: snapshots.length, bestEver };
   }
   const current = await archTrendMetrics(ctx);
-  // 无快照：gate 不构成阻断，明示按基线建立处理（baseline:true），先 --record 后棘轮生效。
-  if (!state.snapshots.length) {
+  const persisted = state.bestEver ?? {};
+  const hasPersistedBest = TREND_GATED_FIELDS.some((field) => persisted[field] !== undefined);
+  // 无快照且无持久化 bestEver：gate 不构成阻断，明示按基线建立处理（baseline:true），先 --record 后棘轮生效。
+  if (!state.snapshots.length && !hasPersistedBest) {
     return {
       mode,
       ok: true,
@@ -374,10 +400,29 @@ export async function archTrend(ctx, mode) {
       report: 'arch trend --gate：无历史快照，本次通过（baseline:true——先 arch trend --record 建立基线后棘轮生效）'
     };
   }
-  // 逐指标历史最小值：与"最近一次"比较会漏掉 debt-swap（还一笔旧债加一笔新债、净零放行）。
+  // 逐指标历史最优：优先持久化的 bestEver（REQ-064，截断快照不抬天花板）；
+  // 旧版状态文件（无 bestEver 字段）退化回快照现算 min，行为与 REQ-016 一致。
+  // 与"最近一次"比较会漏掉 debt-swap（还一笔旧债加一笔新债、净零放行）。
+  // 修复轮二（W2）：gate 分支不再盲信 persisted——与现存 snapshots 逐指标交叉核对，
+  // 取更严者判定；persisted 被抬高到比快照还松 = 篡改/腐化嫌疑，响亮报出（不静默放行）。
+  // 修复轮三（W6）：snapshots 为空时交叉核对退化为盲信 persisted——如实标注，不假装核对过。
+  // 残余面如实声明：本地棘轮文件（无密钥）只能 tamper-evident 不能 tamper-proof——
+  // 整文件重写不可防；把趋势文件纳入 git 提交史（committed 证据模式）才是真正缓解。
   const best = {};
+  const crossNotes = [];
+  if (hasPersistedBest && !state.snapshots.length) {
+    crossNotes.push('无快照可交叉核对，persisted bestEver 为唯一判定依据（交叉核对退化形态——本地棘轮残余面：整文件重写不可防，committed 趋势文件+git 史是缓解）');
+  }
   for (const field of TREND_GATED_FIELDS) {
-    best[field] = Math.min(...state.snapshots.map((snapshot) => snapshot[field] ?? 0));
+    const snapshotMin = state.snapshots.length
+      ? Math.min(...state.snapshots.map((snapshot) => snapshot[field] ?? 0))
+      : undefined;
+    const persistedValue = persisted[field];
+    if (persistedValue !== undefined && snapshotMin !== undefined && persistedValue > snapshotMin) {
+      crossNotes.push(`${field}: 持久化 bestEver ${persistedValue} 比现存快照最优 ${snapshotMin} 还松（不一致，篡改/腐化嫌疑）——按更严者 ${snapshotMin} 判定`);
+    }
+    const value = Math.min(persistedValue ?? Infinity, snapshotMin ?? Infinity);
+    best[field] = Number.isFinite(value) ? value : 0;
   }
   const regressions = [];
   for (const field of TREND_GATED_FIELDS) {
@@ -390,9 +435,12 @@ export async function archTrend(ctx, mode) {
     baseline: best,
     current,
     regressions,
-    report: regressions.length
-      ? `架构漂移棘轮触发（超越历史最优即新债）：${regressions.join('；')}`
-      : '架构漂移棘轮通过：违规指标未超越历史最优'
+    report: [
+      ...crossNotes.map((note) => `bestEver 交叉核对：${note}`),
+      regressions.length
+        ? `架构漂移棘轮触发（超越历史最优 bestEver 即新债；bestEver 持久化于 ${ARCH_TREND_FILE}，样本截断不抬天花板）：${regressions.join('；')}`
+        : '架构漂移棘轮通过：违规指标未超越历史最优（bestEver）'
+    ].join('\n')
   };
 }
 

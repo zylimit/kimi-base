@@ -48,15 +48,15 @@ node .kimi-base/runtime/kimi-base.mjs task complete       # 完成门
 | `spec view [--paths a,b\|--all]` | 预算化需求摘要（本次变更触达哪些需求） |
 | `rules-audit [--files a,b]` | 宪法执法率审计（默认纯建议） |
 | `skills-lint` / `agents-lint` | skill 契约与根 AGENTS.md 体积预算 |
-| `dod` | Definition of Done 静态电池：catalog lint → skills-lint → agents-lint → spec lint → adr check → fitness --all → trace → receipt verify → arch check；任一 FAIL exit 2，仅降级 exit 3；步骤 exit 4（证据陈旧）记 STALE——响亮可见但不阻断（**完整性归 dod，新鲜度归 release**） |
+| `dod` | Definition of Done 电池：静态电池（catalog lint → skills-lint → agents-lint → spec lint → adr check → fitness --all → trace → receipt verify → arch check，DOD_STEPS 单源）+ verification-matrix 全部检查，输出按 inner/middle/outer 三层分组（REQ-062：inner=commit 前秒级可阻塞 / middle=评审级可阻塞 / outer=趋势健康信号性）；inner/middle 层任一 FAIL exit 2，outer 层 FAIL 响亮可见但不阻断，仅降级 exit 3；步骤 exit 4（证据陈旧）记 STALE——响亮可见但不阻断（**完整性归 dod，新鲜度归 release**） |
 
 ## 3. 架构看护
 
 - `catalog lint`：路径归属/禁 catch-all/定档理由。
-- `catalog discover [--write] [--depth N]`：从仓库事实推导 catalog 草案（源码目录分组 + 真实 import 边推导 dependsOn + tier-N 位置分层 + 构建清单命令检测 + 生产源码属性信号提案）；属性档位/forbiddenDependencies 不猜，进 `needsDecision` 待人决；已有 catalog 时 `--write` 写 `module-catalog.draft.json`（绝不覆盖人工策展），否则写 `module-catalog.json`；无可提案 → exit 3。`init-modules` 是废弃别名，转发本命令。
+- `catalog discover [--write] [--depth N] [--level L0|L1|L2|L3]`（REQ-063 渐进采用阶梯，缺省 L1；L0 最小钩子面无 layers/attributes/属性提案且不生成 verification-matrix.json，L2 保留 layers+attributeProposals，L3 全量+fleet 仓群引用；非法 level exit 1 列合法集）：从仓库事实推导 catalog 草案（源码目录分组 + 真实 import 边推导 dependsOn + tier-N 位置分层 + 构建清单命令检测 + 生产源码属性信号提案）；属性档位/forbiddenDependencies 不猜，进 `needsDecision` 待人决；已有 catalog 时 `--write` 写 `module-catalog.draft.json`（绝不覆盖人工策展），否则写 `module-catalog.json`；无可提案 → exit 3。`init-modules` 是废弃别名，转发本命令。
 - `arch check [--scan]`：实边对账。违规分级：禁边 > 分层 > 未声明。发现违规 exit 1。
 - `arch baseline --write`：固化存量债（每条带 reason）；已还清条目会标 stale 催删。
-- `arch trend --record|--gate`：漂移快照与棘轮门——对比逐指标历史最优（best-ever），回弹 exit 1（CI/发布前跑 --gate）。
+- `arch trend --record|--gate`：漂移快照与棘轮门——对比逐指标历史最优（best-ever），回弹 exit 1（CI/发布前跑 --gate）。REQ-064：历史最优显式持久化为 arch-trend.json 的 `bestEver` 独立字段，--gate 只信持久化值——样本截断不抬天花板，还债后天花板永降。
 - `adr check`：ADR 的 `Enforced-by:` 必须指向真实检查或 `manual:`。
 
 ## 4. 质量属性
