@@ -8,12 +8,16 @@
 
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { archCheckRun } from './arch.mjs';
+import { assessBudget } from './budget.mjs';
 import { TIER_RANK, analyzeImpact, loadCatalog } from './catalog.mjs';
 import { HarnessError, atomicWrite, boundedText, contentHashOf, degradedError, nowIso, sha256, staleError, toPosix, usageError } from './core.mjs';
+import { runFitness } from './fitness.mjs';
 import { changedPaths, git, gitFingerprint, requireGit, splitZero } from './git.mjs';
 import { appendLedgerRecord, writeReceiptFile } from './ledger.mjs';
 import { REVIEW_BACKLOG_FILE, REVIEW_SESSION_FILE } from './paths.mjs';
 import { readState, stateFile, updateState, writeState } from './state.mjs';
+import { loadStrengthConfig, resolveStrength } from './strength.mjs';
 import { getActiveTask } from './tasks.mjs';
 
 // finding.location 锚定结尾行号（兼容 Windows 路径 D:\src\x.ts:12——不排斥路径中的冒号与反斜杠）。
@@ -102,14 +106,9 @@ export function currentStage(session) {
   }
 }
 
-// 团队选拔：显式 lenses 非空则显式集胜出，否则剖面定团；随后属性收缩——
-// 受影响模块均未把该 lens 的属性定档 ≥ low 即剔除（correctness 无属性永不剔除）。
+// 属性收缩：受影响模块均未把该 lens 的属性定档 ≥ low 即剔除（correctness 无属性永不剔除）。
 // 属性只能收缩团队，不能扩张：全定 high 的项目不会因此召集所有人。
-export function selectReviewTeam(catalog, affectedModules) {
-  const config = catalog?.review ?? null;
-  const explicit = Array.isArray(config?.lenses) && config.lenses.length ? config.lenses : null;
-  const profile = explicit ? 'explicit' : (config?.profile ?? 'team');
-  const base = explicit ?? (REVIEW_PROFILES[config?.profile ?? 'team'] ?? REVIEW_PROFILES.team);
+function shrinkByAttributes(catalog, affectedModules, base) {
   const modules = (catalog?.modules ?? []).filter((module) => affectedModules.includes(module.id));
   const required = [];
   const excluded = [];
@@ -124,7 +123,46 @@ export function selectReviewTeam(catalog, affectedModules) {
     if (kept) required.push(name);
     else excluded.push({ lens: name, reason: `受影响模块均未将 ${lens.attribute} 定档 ≥ low（属性只能收缩团队，不能扩张）` });
   }
+  return { required, excluded };
+}
+
+// 团队选拔：显式 lenses 非空则显式集胜出，否则剖面定团；随后属性收缩。
+export function selectReviewTeam(catalog, affectedModules) {
+  const config = catalog?.review ?? null;
+  const explicit = Array.isArray(config?.lenses) && config.lenses.length ? config.lenses : null;
+  const profile = explicit ? 'explicit' : (config?.profile ?? 'team');
+  const base = explicit ?? (REVIEW_PROFILES[config?.profile ?? 'team'] ?? REVIEW_PROFILES.team);
+  const { required, excluded } = shrinkByAttributes(catalog, affectedModules, base);
   return { required, excluded, profile };
+}
+
+// REQ-057：strength.json 存在时召集由强度策略轴驱动——reviewLenses（full=九 lens 全集 /
+// minimal=correctness 地板 / standard=team 相当集；none 同 minimal，correctness 永不落空），
+// reviewRounds 存进 session 作 maxRounds。catalog 四剖面退为无 strength.json 时的别名；
+// 与 catalog 显式 lenses 冲突时 strength 胜出并注明。随后照常套属性收缩。
+async function selectReviewTeamWithStrength(ctx, catalog, affected) {
+  const strengthConfig = await loadStrengthConfig(ctx);
+  if (!strengthConfig) return { ...selectReviewTeam(catalog, affected), maxRounds: null, strength: null };
+  const resolved = await resolveStrength(ctx, {});
+  const lensesAxis = resolved.axes.reviewLenses;
+  const base = lensesAxis === 'full' ? Object.keys(LENS_LIBRARY)
+    : lensesAxis === 'minimal' || lensesAxis === 'none' ? ['correctness']
+    : REVIEW_PROFILES.team;
+  const { required, excluded } = shrinkByAttributes(catalog, affected, base);
+  const overrodeCatalogLenses = Array.isArray(catalog?.review?.lenses) && catalog.review.lenses.length > 0;
+  return {
+    required,
+    excluded,
+    profile: `strength:${resolved.active}`,
+    maxRounds: resolved.axes.reviewRounds,
+    strength: {
+      profile: resolved.active,
+      reviewLenses: lensesAxis,
+      reviewStages: resolved.axes.reviewStages,
+      policyHash: resolved.policyHash,
+      ...(overrodeCatalogLenses ? { note: 'catalog.review.lenses 显式集与强度策略轴冲突：strength 胜出（显式集未生效）' } : {})
+    }
+  };
 }
 
 export async function readReviewSession(ctx) {
@@ -203,7 +241,7 @@ export async function reviewStart(ctx, options = {}) {
     const impact = await analyzeImpact(ctx, range ? { paths: scopePaths } : {});
     affected = impact.affectedModules;
   }
-  const team = selectReviewTeam(catalog, affected);
+  const team = await selectReviewTeamWithStrength(ctx, catalog, affected);
   if (!team.required.length) {
     throw usageError(`评审团队为空：召集的 lens 全部被属性收缩剔除（${team.excluded.map((item) => item.lens).join(', ')}）；请检查 catalog review 配置或模块定档`);
   }
@@ -228,6 +266,8 @@ export async function reviewStart(ctx, options = {}) {
     profile: team.profile,
     requiredLenses: team.required,
     excludedLenses: team.excluded,
+    ...(team.maxRounds !== null ? { maxRounds: team.maxRounds } : {}),
+    ...(team.strength ? { strength: team.strength } : {}),
     lineage,
     blue: null,
     lenses: {},
@@ -318,9 +358,12 @@ export async function recordLens(ctx, name, payload, options = {}) {
       };
     }
   }
+  const reviewer = typeof options.reviewer === 'string' && options.reviewer.trim() ? options.reviewer.trim() : null;
   session.lenses[lensName] = {
     at: nowIso(),
     adHoc,
+    // REQ-057：lens 执行者身份入会话（authorship 账本）——verdict 据此拒作者自审。
+    ...(reviewer ? { reviewer } : {}),
     unable: Boolean(payload?.unable),
     unableReason: typeof payload?.unableReason === 'string' && payload.unableReason.trim() ? payload.unableReason.trim() : null,
     findings
@@ -358,6 +401,34 @@ export async function reviewVerdict(ctx, options = {}) {
   if (blockers.length) {
     throw new HarnessError(`评审裁决被阻断：${blockers.join('；')}`, 'REVIEW_BLOCKED', 1, { blockers });
   }
+  // REQ-057 authorship 执法：作者集 = active task 作者 ∪（range 模式）range 内提交者（git author name）；
+  // 执行者集 = 各 lens 报到记录的执行者。两侧都有数据才谈得上执法；任一侧无数据必须
+  // 诚实输出 authorshipEnforced:false（不假绿）。执行者 ∈ 作者集 = 作者自审，拒出 ACCEPT。
+  // 身份串归一（trim+小写）是匹配地板：改名大小写不得绕过拒判（P5 评审 W1）。
+  const normalizeIdentity = (name) => name.trim().toLowerCase();
+  const task = await getActiveTask(ctx);
+  const authors = new Set();
+  if (typeof task?.author === 'string' && task.author.trim()) authors.add(normalizeIdentity(task.author));
+  // range 作者集采集失败 = 身份数据不完整：authorshipEnforced 如实降 false，绝不静默按已执法报。
+  let authorsComplete = true;
+  if (session.range) {
+    const log = await git(ctx, ['log', '--format=%an', `${session.range.base}..${session.range.head}`], { allowFailure: true });
+    if (log.exitCode === 0) {
+      for (const name of log.stdout.split('\n').map((item) => item.trim()).filter(Boolean)) authors.add(normalizeIdentity(name));
+    } else {
+      authorsComplete = false;
+    }
+  }
+  // 执行者集只统计应到 lens：ad-hoc 是补充证据通道——其发现计入裁决，其执行者不参与独立性判定（P5 评审 W3）。
+  const executors = new Map(); // 归一化身份 → 原始串（拒判输出点名用）
+  for (const report of Object.values(session.lenses)) {
+    if (report.adHoc) continue;
+    if (typeof report.reviewer === 'string' && report.reviewer.trim()) {
+      executors.set(normalizeIdentity(report.reviewer), report.reviewer.trim());
+    }
+  }
+  const selfReview = [...executors.entries()].filter(([key]) => authors.has(key)).map(([, original]) => original);
+  const authorshipEnforced = authorsComplete && authors.size > 0 && executors.size > 0;
   const errorFindings = Object.entries(session.lenses).flatMap(([lens, report]) =>
     (report.findings ?? []).filter((finding) => finding.severity === 'error').map((finding) => ({ lens, ...finding })));
   const unableRequired = session.requiredLenses.filter((name) => session.lenses[name]?.unable);
@@ -365,11 +436,13 @@ export async function reviewVerdict(ctx, options = {}) {
   const final = frontier === null;
   let verdict;
   let exitCode;
-  if (errorFindings.length) { verdict = 'FIX_REQUIRED'; exitCode = 2; }
+  if (authorshipEnforced && selfReview.length) { verdict = 'SELF_REVIEW_REJECTED'; exitCode = 2; }
+  else if (errorFindings.length) { verdict = 'FIX_REQUIRED'; exitCode = 2; }
   else if (unableRequired.length) { verdict = 'NEEDS_MORE_EVIDENCE'; exitCode = 3; }
   else { verdict = 'ACCEPT'; exitCode = 0; }
   const catalog = await loadCatalogOrNull(ctx);
-  const maxRounds = catalog?.review?.maxRounds ?? 3;
+  // REQ-057：强度策略轴驱动时 maxRounds 以会话开启时定格的 reviewRounds 为准。
+  const maxRounds = session.maxRounds ?? catalog?.review?.maxRounds ?? 3;
   const round = (session.lineage ?? []).length + 1;
   // 同一改动反复被拒是关于标准的信息，不是再试一次的指令：到上限即升级给人。
   const escalate = verdict === 'FIX_REQUIRED' && round >= maxRounds;
@@ -383,12 +456,13 @@ export async function reviewVerdict(ctx, options = {}) {
     stage,
     final,
     errorCount: errorFindings.length,
-    unableLenses: unableRequired
+    unableLenses: unableRequired,
+    authorshipEnforced,
+    ...(selfReview.length ? { selfReview } : {})
   };
   await writeState(ctx, REVIEW_SESSION_FILE, session);
   let receipt = null;
   if (verdict === 'ACCEPT' && final) {
-    const task = await getActiveTask(ctx);
     const fingerprint = await gitFingerprint(ctx);
     const taskId = task?.id ?? `review-${fingerprint.fingerprint.slice(0, 8)}`;
     const reportedNames = Object.keys(session.lenses).sort();
@@ -405,6 +479,8 @@ export async function reviewVerdict(ctx, options = {}) {
       reviewer,
       verdict: 'ACCEPT',
       final: true,
+      // 消费者只认回执：诚实标注必须进回执本体，不能只在 CLI 输出（P5 评审 W2）。
+      authorshipEnforced,
       round,
       lenses: reportedNames,
       requiredLenses: [...session.requiredLenses].sort(),
@@ -423,12 +499,14 @@ export async function reviewVerdict(ctx, options = {}) {
   }
   const advice = escalate
     ? `第 ${round}/${maxRounds} 轮仍 FIX_REQUIRED：停止重试，交由人类裁决——要么改动错了要么标准错了，再来一轮分辨不出是哪个`
-    : verdict === 'ACCEPT'
-      ? (final ? '全部阶段通过：应到 lens 齐报且无 error 发现' : `阶段 ${completeThrough}（${REVIEW_STAGES[completeThrough]}）已通过；报齐阶段 ${frontier}（${REVIEW_STAGES[frontier]}）的 lens 以推进终审`)
-      : verdict === 'FIX_REQUIRED'
-        ? '修复 error 发现后重新 review start；报出 error 的 lens 不被干净 lens 投票压过'
-        : '有 lens 无法得出结论：补齐它需要的证据再判，不要绕过';
-  return { verdict, exitCode, final, stage, round, maxRounds, escalate, errorFindings, unableLenses: unableRequired, receipt, advice };
+    : verdict === 'SELF_REVIEW_REJECTED'
+      ? '作者自审拒判：本 diff 的作者不能兼任 lens 执行者；请由作者集之外的独立评审者重报 lens 后重新裁决'
+      : verdict === 'ACCEPT'
+        ? (final ? '全部阶段通过：应到 lens 齐报且无 error 发现' : `阶段 ${completeThrough}（${REVIEW_STAGES[completeThrough]}）已通过；报齐阶段 ${frontier}（${REVIEW_STAGES[frontier]}）的 lens 以推进终审`)
+        : verdict === 'FIX_REQUIRED'
+          ? '修复 error 发现后重新 review start；报出 error 的 lens 不被干净 lens 投票压过'
+          : '有 lens 无法得出结论：补齐它需要的证据再判，不要绕过';
+  return { verdict, exitCode, final, stage, round, maxRounds, escalate, errorFindings, unableLenses: unableRequired, authorshipEnforced, selfReview, receipt, advice };
 }
 
 export async function reviewStatus(ctx) {
@@ -515,6 +593,44 @@ export async function backlogList(ctx) {
 
 // ── review pack：lens 代理消费的证据包（base ref 解析：最新 tag → origin/main → HEAD~1 → 根提交）──
 
+// REQ-057：静态现存发现入包——fitness / arch check / budget 三源的当前结果直接摆给 lens，
+// 免得评审代理把引擎已经知道的问题再发现一遍。每源各包 try/catch：采集失败如实标注，
+// 不炸包（pack 是证据汇集，不是闸；失败标注本身就是证据）。
+// 扫描面对准评审对象（P5 评审 W4）：range 会话时 fitness 扫 range 变更文件集、budget 以
+// range.base 为基线——range 评审的改动已提交、工作树干净，走工作树变更面会扫 0 文件静默漏报；
+// arch check 是声明图全仓校验（不消费 changedPaths），无变更面可对准，保持现状。
+async function collectStaticFindings(ctx, session = null) {
+  const rangePaths = session?.range ? session.scope.paths : null;
+  const rangeBase = session?.range ? session.range.base : null;
+  const sources = [];
+  try {
+    const result = rangePaths?.length ? await runFitness(ctx, { paths: rangePaths }) : await runFitness(ctx, {});
+    sources.push({ source: 'fitness', lines: result.report.split('\n') });
+  } catch (error) {
+    sources.push({ source: 'fitness', lines: [`采集失败：${error.message}`] });
+  }
+  try {
+    const result = await archCheckRun(ctx, {});
+    sources.push({ source: 'arch check', lines: result.report.split('\n') });
+  } catch (error) {
+    sources.push({ source: 'arch check', lines: [`采集失败：${error.message}`] });
+  }
+  try {
+    const result = rangeBase ? await assessBudget(ctx, { baseline: rangeBase }) : await assessBudget(ctx, {});
+    sources.push({
+      source: 'budget',
+      lines: result.degraded
+        ? [`降级：${result.reason}`]
+        : result.findings.length
+          ? result.findings.map((finding) => `- 超限 ${finding.metric}：实际 ${finding.actual} > 上限 ${finding.limit}`)
+          : ['无超支发现（变更在声明的预算之内）']
+    });
+  } catch (error) {
+    sources.push({ source: 'budget', lines: [`采集失败：${error.message}`] });
+  }
+  return sources;
+}
+
 export async function reviewPack(ctx) {
   await requireGit(ctx, 'review pack');
   const head = await git(ctx, ['rev-parse', '--verify', 'HEAD'], { allowFailure: true });
@@ -557,6 +673,9 @@ export async function reviewPack(ctx) {
   const epoch = Date.now();
   const directory = stateFile(ctx, 'review');
   const packPath = path.join(directory, `review-pack-${epoch}.md`);
+  // W4：静态发现对准评审对象——有 range 会话时扫描面取自会话（scope.paths / range.base）。
+  const session = await readReviewSession(ctx);
+  const staticFindings = await collectStaticFindings(ctx, session);
   let spillPath = null;
   let diffSection;
   if (diffLines > 800) {
@@ -586,6 +705,9 @@ export async function reviewPack(ctx) {
     '',
     '## 未跟踪文件',
     ...(changes.untracked.length ? changes.untracked.map((file) => `- ${file}`) : ['（无）']),
+    '',
+    `## 静态现存发现（fitness / arch check / budget 当前结果；扫描面：${session?.range ? `range ${session.range.base}...${session.range.head.slice(0, 12)} 变更文件集` : '工作树变更面'}；采集失败如实标注）`,
+    ...staticFindings.flatMap((entry) => ['', `### ${entry.source}`, ...entry.lines]),
     '',
     `## 完整 diff（${diffLines} 行）`,
     diffSection,

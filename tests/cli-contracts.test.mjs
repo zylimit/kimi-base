@@ -8,20 +8,16 @@
  * .kimi-base/state/ 残留。本文件未使用夹具需求 id（无 spec 夹具）；凡引用本仓 REQ-056 /
  * REQ-058 均为真实追溯，非拼接夹具 id。
  *
- * REQ-058 扩表（P6 前置，测试作者面）：feedback 动词（record/list/scan/propose）入锁定集
+ * REQ-058 扩表（P6，测试作者面）：feedback 动词（record/list/scan/propose）入锁定集
  * ——39+help → 40+help。扩表只加表项与专条用例，既有断言语义不变（全部用例表驱动，
- * 自动随表扩展）。写测时点 feedback 未实现：feedback 相关断言红因=「未知动词：feedback」
- * （契约校验旁路、合法 flag 集不列出）/「CONTRACTS 缺 verb：feedback」（表对账），属预期。
+ * 自动随表扩展）。扩表先行于实现（红测先行），feedback 已随 P6 落地，本组现为注册表契约锁定。
  *
  * 断言输出的特别说明：REQ-056 契约 3/4/5/6 显式要求"exit 1 且输出列出合法 flag 集/
  * 点名重复 flag/点名空值 flag/裸 token 归为位置参数"。usageError 走 stderr，故这些用例
  * 断言 out(r)=stdout+stderr 中的字段性 token（flag 名、位置参数名），不断言整句文案。
  *
- * 红绿预期（写测时点，实现未落地）：
- *   - 「现状锁定」组全绿（未知 flag 拒绝、flag 表、互斥、--help、boolean 相邻）。
- *   - 「契约注册表/新行为」组红：cli-contracts.mjs 缺失、重复 flag/空值未校验、
- *     boolean flag 吞后续裸 token（parseCliArgs 把下一个裸 token 当 flag 值吃掉）、
- *     selftest 无契约计数行。红因必须都是行为缺失，不是夹具/语法错误。
+ * 红测先行记录：REQ-056 落地前「现状锁定」组绿、「契约注册表/新行为」组红
+ * （红因=文件缺失/行为缺失）；实现落地后全组转绿，现为契约回归锁。
  */
 
 import { describe, test } from 'node:test';
@@ -129,7 +125,8 @@ const EXPECTED_FLAGS = {
   manifest: { write: 'boolean', check: 'boolean' },
   doctor: { target: 'value' },
   'pack-check': {},
-  task: { goal: 'value', owned: 'value', risk: 'value' },
+  // author（task start --author，REQ-057）：扩表先行于实现，已随 P5 落地转正。
+  task: { goal: 'value', owned: 'value', risk: 'value', author: 'value' },
   gate: { risk: 'value', kind: 'value', 'dry-run': 'boolean' },
   quality: { check: 'value', approver: 'value', reason: 'value', expires: 'value', compensation: 'value' },
   waiver: { check: 'value', approver: 'value', reason: 'value', expires: 'value', compensation: 'value' },
@@ -178,9 +175,8 @@ function assertFlagToken(text, name, label) {
 
 describe('REQ-056 现状锁定：flag 表与未知 flag 拒绝', () => {
   test('40 个 dispatch verb 逐一：未知 flag exit 1 且输出列出该 verb 合法 flag 集（含全局 project/help）', RT, (t) => {
-    // REQ-058 注记：feedback 入表后本循环自动覆盖之。写测时点 feedback 未实现——
-    // 红因=「未知动词：feedback」（契约校验旁路），合法 flag 集（--topic/--type/
-    // --description/--skip + 全局）列不出，红在 assertFlagToken。属预期。
+    // REQ-058 注记：feedback 入表后本循环自动覆盖之（表驱动），合法 flag 集
+    // （--topic/--type/--description/--skip + 全局）逐 token 锁定。
     for (const verb of DISPATCH_VERBS) {
       const r = run([verb, '--zzz-contract-probe']);
       assert.equal(r.code, 1, `${verb}：未知 flag 应 exit 1，实得 ${r.code}\n${out(r)}`);
@@ -241,11 +237,10 @@ describe('REQ-056 现状锁定：flag 表与未知 flag 拒绝', () => {
     }
   });
 
-  test('feedback 专条：未知 flag exit 1 且点名该 flag 并列出合法集、不报「未知动词」（REQ-058 扩表，写测时点红）', RT, () => {
+  test('feedback 专条：未知 flag exit 1 且点名该 flag 并列出合法集、不报「未知动词」（REQ-058 扩表）', RT, () => {
     // 与表驱动循环互补的防假绿专条：循环里 feedback 的 exit 1 可被「未知动词」凑出，
-    // 本条显式断言点名违规 flag 且不报「未知动词」（同 tests/feedback.test.mjs 纪律）。
-    // 红因=行为缺失：feedback 未注册 → contractOf 查表落空 → default 报「未知动词」exit 1，
-    // --zzz-contract-probe 永远不被点名、合法 flag 集（--topic/--type/--description/--skip）不列出。
+    // 本条显式断言点名违规 flag 且不报「未知动词」（同 tests/feedback.test.mjs 纪律）——
+    // 只有 feedback 已注册入契约，报文才会点名 flag 而非动词。
     const r = run(['feedback', 'list', '--zzz-contract-probe']);
     assert.equal(r.code, 1, `未知 flag 应 exit 1，实得 ${r.code}\n${out(r)}`);
     assertFlagToken(out(r), 'zzz-contract-probe', 'feedback 未知 flag 报文');
@@ -256,7 +251,7 @@ describe('REQ-056 现状锁定：flag 表与未知 flag 拒绝', () => {
   });
 });
 
-// ---------------- 契约注册表（REQ-056 契约 1/2，写测时点红：文件未落地） ----------------
+// ---------------- 契约注册表（REQ-056 契约 1/2：单源派生回归锁） ----------------
 
 describe('REQ-056 契约注册表：单源派生', () => {
   test('.kimi-base/runtime/lib/cli-contracts.mjs 存在并导出冻结 CONTRACTS', RT, async () => {
@@ -296,7 +291,6 @@ describe('REQ-056 契约注册表：单源派生', () => {
       }
     }
     // 防漂移：除 40 个 dispatch verb 外只允许 help（第 41 个 verb）入账。
-    // 写测时点红因=「CONTRACTS 缺 verb：feedback」（REQ-058 扩表先行，实现未落地），属预期。
     const extra = Object.keys(CONTRACTS).filter((k) => !DISPATCH_VERBS.includes(k) && k !== 'help');
     assert.deepEqual(extra, [], `CONTRACTS 出现现状表外 verb：${extra.join(', ')}`);
   });
@@ -314,12 +308,12 @@ describe('REQ-056 契约注册表：单源派生', () => {
   });
 });
 
-// ---------------- 新行为（REQ-056 契约 4/5/6，写测时点红：行为缺失） ----------------
+// ---------------- 新行为（REQ-056 契约 4/5/6：严格 flag 校验回归锁） ----------------
 
 describe('REQ-056 新行为：严格 flag 校验', () => {
   test('重复 flag：gate --risk high --risk low exit 1 且点名重复', RT, (t) => {
     // 非项目目录：与未知 flag 同类（用法错误），校验必须先于项目根解析；
-    // 现状 parseCliArgs 静默覆盖（后者赢），落到 PROJECT_ROOT_NOT_FOUND——红因=无重复校验。
+    // 锁定：重复 flag 必须 exit 1 并点名（旧缺陷：parseCliArgs 静默覆盖、后者赢）。
     const dir = mkdtemp(t);
     const r = run(['gate', '--risk', 'high', '--risk', 'low'], { cwd: dir });
     assert.equal(r.code, 1, `重复 flag 应 exit 1，实得 ${r.code}\n${out(r)}`);
@@ -328,7 +322,7 @@ describe('REQ-056 新行为：严格 flag 校验', () => {
   });
 
   test('value flag 空值：task --goal= exit 1 且点名空值', RT, (t) => {
-    // 现状 --goal= 解析为空字符串后直接放行——红因=无空值校验。
+    // 锁定：value flag 空值必须 exit 1 并点名（旧缺陷：--goal= 解析为空字符串后直接放行）。
     const dir = mkdtemp(t);
     const r = run(['task', 'start', '--goal='], { cwd: dir });
     assert.equal(r.code, 1, `空值 flag 应 exit 1，实得 ${r.code}\n${out(r)}`);
@@ -338,10 +332,10 @@ describe('REQ-056 新行为：严格 flag 校验', () => {
 });
 
 describe('REQ-056 新行为：boolean flag 不吞后续裸 token', () => {
-  // 判定依据（读 dispatchCommand 全文后选定，与各 verb 现状一致）：
-  // parseCliArgs 现状把 boolean flag 后的裸 token 吞成 flag 值（如 --scan bogus-sub
-  // → flags.scan='bogus-sub'，位置参数丢失）——这是修复点，禁止锁成"bug 即契约"。
-  // 修复后期望：裸 token 归为位置参数。之后按 verb 的位置参数语义分流——
+  // 判定依据（读 dispatchCommand 全文后选定，与各 verb 契约一致）：
+  // 旧缺陷：parseCliArgs 曾把 boolean flag 后的裸 token 吞成 flag 值（如 --scan bogus-sub
+  // → flags.scan='bogus-sub'，位置参数丢失）——本组锁修复后语义，禁止回退成"bug 即契约"。
+  // 契约：裸 token 归为位置参数。之后按 verb 的位置参数语义分流——
   //   · 子命令类 verb（arch/adr/catalog/context/receipt/retention/spec/task/quality/…）：
   //     现状对未知子命令本就 exit 1 并点名（如「未知 arch 子命令：bogus-sub」）；
   //     修复后裸 token 落到 sub，沿用同一报错路径 → exit 1 且输出含该 token。
@@ -352,8 +346,8 @@ describe('REQ-056 新行为：boolean flag 不吞后续裸 token', () => {
 
   test('子命令类 verb：retention --dry-run bogus exit 1 且点名 bogus', RT, (t) => {
     // retention 的子命令校验在 needProject 之前（现状顺序），无需项目夹具。
-    // 现状：--dry-run 吞掉 bogus → sub=undefined → 报「未知 retention 子命令：<缺>」——
-    // exit 1 对但点错了名，红因=token 被吞。
+    // 锁定：裸 token bogus 必须归为位置参数并被子命令校验点名（旧缺陷：--dry-run 吞掉 bogus
+    // → sub=undefined → 报「未知 retention 子命令：<缺>」——exit 1 对但点错了名）。
     const dir = mkdtemp(t);
     const r = run(['retention', '--dry-run', 'bogus'], { cwd: dir });
     assert.equal(r.code, 1, `应 exit 1，实得 ${r.code}\n${out(r)}`);
@@ -362,7 +356,7 @@ describe('REQ-056 新行为：boolean flag 不吞后续裸 token', () => {
 
   test('子命令类 verb：arch --scan bogus-sub exit 1 且点名 bogus-sub', RT, (t) => {
     // arch 子命令校验在 needProject 之后（现状顺序），给最小 harness 夹具放行项目解析。
-    // 现状：--scan 吞掉 bogus-sub → 报「未知 arch 子命令：<缺>」——红因=token 被吞。
+    // 锁定：裸 token bogus-sub 必须被点名（旧缺陷：--scan 吞掉 bogus-sub → 报「未知 arch 子命令：<缺>」）。
     const dir = harnessFixture(t);
     const r = run(['arch', '--scan', 'bogus-sub'], { cwd: dir });
     assert.equal(r.code, 1, `应 exit 1，实得 ${r.code}\n${out(r)}`);
@@ -371,7 +365,7 @@ describe('REQ-056 新行为：boolean flag 不吞后续裸 token', () => {
 
   test('零位置参数 verb：gate --dry-run extra exit 1 且点名 extra', RT, (t) => {
     // 非项目目录：位置参数上界校验与未知 flag 同类，必须先于项目根解析。
-    // 现状：extra 被吞成 --dry-run 的值 → PROJECT_ROOT_NOT_FOUND——红因=token 被吞+无上界校验。
+    // 锁定：extra 必须按位置参数越界点名（旧缺陷：extra 被吞成 --dry-run 的值 → PROJECT_ROOT_NOT_FOUND）。
     const dir = mkdtemp(t);
     const r = run(['gate', '--dry-run', 'extra'], { cwd: dir });
     assert.equal(r.code, 1, `应 exit 1，实得 ${r.code}\n${out(r)}`);
@@ -379,8 +373,8 @@ describe('REQ-056 新行为：boolean flag 不吞后续裸 token', () => {
   });
 
   test('零位置参数 verb：manifest --check extra exit 1 且点名 extra', RT, (t) => {
-    // 现状最直观：extra 被吞成 --check 的值，命令"正常"跑完 manifest check exit 0——
-    // 拼错的多余参数静默生效。修复后 exit 1 点名 extra。
+    // 旧缺陷最直观形态：extra 被吞成 --check 的值，命令"正常"跑完 manifest check exit 0——
+    // 拼错的多余参数静默生效。锁定：exit 1 点名 extra。
     const dir = mkdtemp(t);
     const r = run(['manifest', '--check', 'extra'], { cwd: dir });
     assert.equal(r.code, 1, `多余位置参数应 exit 1，实得 ${r.code}（现状吞 token 后假绿 exit 0）\n${out(r)}`);
@@ -388,7 +382,7 @@ describe('REQ-056 新行为：boolean flag 不吞后续裸 token', () => {
   });
 });
 
-// ---------------- selftest 双向钉死（REQ-056 契约 7，写测时点红：无契约计数行） ----------------
+// ---------------- selftest 双向钉死（REQ-056 契约 7：契约计数行回归锁） ----------------
 
 describe('REQ-056 selftest 双向钉死', () => {
   test('selftest exit 0 且输出含契约校验计数行（contractCheck：每个路由有契约、每个契约有路由）', RT, () => {

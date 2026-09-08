@@ -1,6 +1,7 @@
 /**
  * tests/discover.test.mjs
- * REQ-068（discover 真实仓健壮性）行为测试——红测先行于实现，P2 落地同 commit 追溯锚点转正（摘 planned 标记）。
+ * REQ-068（discover 真实仓健壮性）行为测试——红测先行于实现，已随 P2 落地转正
+ * （planned 标记已摘除，字面引用为正式追溯）。
  *
  * 覆盖四个缺陷（现场见 docs/LARGE-REPO-GUIDE.md §5 真实仓校准节）：
  *   1) 重复模块：目录分组（≥2 文件成组）丢弃的单文件深层组坠入顶层兜底，与既有同 root
@@ -416,7 +417,7 @@ describe(`${REQ} 回归守卫：无环普通仓 discover 行为不变`, RT, () =
   });
 });
 
-// ---------------- REQ 068 P2 评审回归：occupant 让位 + 实边重扫（红测先行） ----------------
+// ---------------- REQ 068 P2 评审回归：occupant 让位 + 实边重扫（缺陷回归锁） ----------------
 // 三个形态复刻自 P2 testing lens 评审实证现场（/tmp/kb-resplit-*、/tmp/kb-rootdot-*）：
 //   6) occupant 让位触发重扫后：draft 残留 q-a↔w 环、W→散文件 G 的边错挂凝聚模块、
 //      root=src/q 被凝聚模块与 occupant 双占（root 全图唯一不变量破）。
@@ -424,8 +425,7 @@ describe(`${REQ} 回归守卫：无环普通仓 discover 行为不变`, RT, () =
 //      归零——凝聚模块丢失 src→ext 真实边，"无环"沦为边全丢的假绿。
 //   8) resplit 分支覆盖红锁：环公共前缀被环外散文件组占用时，让位产物必须无环、
 //      root 全图唯一、occupant 散文件归属唯一模块。
-// 写测时点当前实现三例全红；红因必须都是缺陷本身（环残留/边错归属/边丢失/root 撞车），
-// 不是夹具或断言错误。
+// 三例红测先行随修复转绿，现为回归锁（缺陷：环残留/边错归属/边丢失/root 撞车）。
 
 /** 路径覆盖判定：模块 paths（相对 root 的 glob）是否覆盖 repo 相对路径 rel。 */
 function coversFile(m, rel) {
@@ -601,13 +601,13 @@ describe(`${REQ} 让位细分分支：环公共前缀被环外模块占用`, RT,
   });
 });
 
-// ---------------- REQ 068 P2 第三轮回归：第二轮再凝聚 paths 膨胀（红测先行） ----------------
+// ---------------- REQ 068 P2 第三轮回归：第二轮再凝聚 paths 膨胀（缺陷回归锁） ----------------
 // 形态9 复刻 correctness 复审实证现场（/tmp/kb-round2-*）：discover.mjs 凝聚-重扫循环
 // 第二轮再凝聚只用 member.root 推导子树 glob，丢弃 member.paths 的枚举收窄——
 // 凝聚 {q-a,w} 时 q-a（root=src/q，paths 已收窄为 a/**、b/**）被按 root 重推成 'q/**'，
 // 覆盖面膨胀吞掉 occupant 散文件 g1/g2（幻影模块：g1 双属主），g1→ext 真实边随之错挂
 // 膨胀后的凝聚模块。
-// 写测时点当前实现红；红因必须是缺陷本身（覆盖面膨胀/幻影双属主/边错归属）。
+// 红测先行随修复转绿，现为回归锁（缺陷：覆盖面膨胀/幻影双属主/边错归属）。
 
 /**
  * 形态9 夹具（复刻 /tmp/kb-round2-*）：环 src/q/a↔src/q/b；occupant 散文件 g1/g2 在
@@ -695,14 +695,14 @@ describe(`${REQ} 第二轮再凝聚：paths 枚举收窄不得膨胀为 root 子
   });
 });
 
-// ---------------- REQ 068 P2 第四轮回归：同轮多 SCC 让位崩溃 + NodeNext 假绿（红测先行） ----------------
+// ---------------- REQ 068 P2 第四轮回归：同轮多 SCC 让位崩溃 + NodeNext 假绿（缺陷回归锁） ----------------
 // 两个形态复刻 correctness 终审实证现场（/tmp/kb-dotrebase-*、/tmp/kb-nodenext-*）：
 //   10) 同轮多 SCC 让位崩溃：三个环同轮凝聚，SCC2 的 occupant 恰好是 SCC3 的成员——
 //       让位细分把成员从 modules 移除后，SCC3 的 target 查找落空（discover.mjs:432
 //       TypeError: Cannot set properties of undefined），discover 整命令 ENGINE_ERROR。
 //   11) 裸路径 specifier 扩展名改写假绿：import "src/b/x.js"（NodeNext 风格，真实文件
 //       x.ts）未做 .js→.ts 改写解析，真实违例边 a→b 消失，arch check --scan 假绿 exit 0。
-// 写测时点当前实现两例全红；红因必须是缺陷本身（崩溃 / 假绿），不是夹具或断言错误。
+// 两例红测先行随修复转绿，现为回归锁（缺陷：崩溃 / 假绿）。
 
 /**
  * 形态10 夹具（复刻 /tmp/kb-dotrebase-*）：三个环同轮——

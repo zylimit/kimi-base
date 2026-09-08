@@ -22,7 +22,7 @@ export const CONTRACTS = Object.freeze({
   manifest: { usage: 'manifest --write|--check', positional: { min: 0, max: 0 }, flags: { write: boolean, check: boolean }, conflicts: [['write', 'check']] },
   doctor: { usage: 'doctor [target]', positional: { min: 0, max: 1 }, flags: { target: value } },
   'pack-check': { usage: 'pack-check', positional: { min: 0, max: 0 }, flags: {} },
-  task: { usage: 'task start --goal G --owned "g,g" --risk low|medium|high | task status|complete|cancel', positional: { min: 0, max: 1 }, flags: { goal: value, owned: value, risk: value } },
+  task: { usage: 'task start --goal G --owned "g,g" --risk low|medium|high [--author X] | task status|complete|cancel', positional: { min: 0, max: 1 }, flags: { goal: value, owned: value, risk: value, author: value } },
   gate: { usage: 'gate [--risk R] [--kind K] [--dry-run]', positional: { min: 0, max: 0 }, flags: { risk: value, kind: value, 'dry-run': boolean } },
   quality: { usage: 'quality status | quality waiver create --check K --approver X --reason R --expires ISO --compensation C | quality waiver list', positional: { min: 0, max: 2 }, flags: { check: value, approver: value, reason: value, expires: value, compensation: value } },
   waiver: { usage: 'waiver create|list（quality waiver 的顶层别名）', positional: { min: 0, max: 2 }, flags: { check: value, approver: value, reason: value, expires: value, compensation: value } },

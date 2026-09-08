@@ -1,8 +1,8 @@
 /**
  * tests/strength.test.mjs
  * REQ-051（强度策略引擎）/ REQ-052（strength 动词族）行为测试——红测先行于实现，
- * v3.0 P3 落地同 commit 摘 planned 标记（本文件的字面引用即 PLANNED_HAS_TESTS 的触发源，
- * 属预期工作流，不是误报）。设计依据：docs/adr/0008-strength-policy-engine.md。
+ * 已随 v3.0 P3 落地转绿（planned 标记已摘除，字面引用为正式追溯）。
+ * 设计依据：docs/adr/0008-strength-policy-engine.md。
  *
  * 运行：node --test tests/strength.test.mjs
  *
@@ -12,8 +12,8 @@
  * 凡断言错误码 token（STRENGTH_WEAKENING 等）的用例一律用 out(r)=stdout+stderr 合并视图，
  * 只断言字段性 token，不断言整句文案、不断言 stderr 独立内容。
  *
- * 红绿预期（写测时点，特性未实现）：除「shadow 不阻断」的 task complete 半句外全部红，
- * 红因必须是行为缺失/命令不存在（未知动词 strength），不是夹具或语法错误。
+ * 红测先行记录：写测时点特性未实现，除「shadow 不阻断」的 task complete 半句外全部红
+ * （红因=行为缺失/未知动词 strength）；落地后全绿，本文件现为 REQ-051/052 契约回归锁。
  *
  * 契约歧义点的选定解释（详见各用例注释）：
  *   1) explain 的 path/attribute floor 触发入口：契约只列了 --risk/--operation，选定
@@ -181,9 +181,8 @@ const BUILTIN_NAMES = Object.keys(BUILTIN); // explore/rapid/balanced/strict
 
 /**
  * 最小合法 verification-matrix（completionGate 强依赖 loadMatrix；riskKinds 累积并集
- * 且 high 必须含 security）。low 层挂一个 unit 检查：无 fresh receipt 时完成门自然 exit 2，
- * completionMode 执法用例的"当前基线"就是这条既有阻断路径（红因=completionMode 未点名，
- * 不是夹具错误）。
+ * 且 high 必须含 security）。low 层挂一个 unit 检查：无 fresh receipt 时完成门自然 exit 2——
+ * completionMode 执法用例在这条既有阻断路径之上点名 completionMode，防「别处 exit 2 凑绿」。
  */
 const MATRIX_MIN = JSON.stringify({
   version: 1,
@@ -601,7 +600,7 @@ describe('selftest 集成', RT, () => {
 });
 
 // ---------------- P3 评审缺陷回归（独立测试作者追加；纯追加段，不动既有用例与文件头） ----------------
-// 缺陷锚点（红因=实现缺陷本身，逐条见用例注释）：
+// 缺陷锚点（P3 评审发现的四处实现缺陷；红测先行随修复转绿，现为回归锁）：
 //   D1 attribute floor 只吃字符串形属性声明——catalog.mjs parseAttributeDeclaration 明确的
 //      合法对象形 {tier, reason} 被 String({...})="[object Object]" 吞掉，保护属性永不抬升。
 //   D2 attribute floor 裸 matchesGlob 不剥 module.root 前缀——codex 系模块（root + root 内
@@ -616,8 +615,8 @@ describe('selftest 集成', RT, () => {
 
 describe('P3 缺陷回归：attribute floor 合法形态', RT, () => {
   test('对象形属性声明 {"security":{"tier":"high","reason":...}} → strict 且标 floor:attribute', (t) => {
-    // 红因=D1：attributeFloorProfile 用 String(attributes.security) 比档，对象形被
-    // String 成 "[object Object]"，永不命中 PROTECTED_TIERS；该形态是 catalog 合法输入。
+    // 锁定（D1）：对象形 {tier, reason} 是 catalog 合法属性声明，必须命中属性 floor——
+    // 旧缺陷：attributeFloorProfile 用 String(...) 比档，对象形被吞成 "[object Object]" 永不命中。
     // 夹具隔离：路径 src/pay.js 命中模块 glob 但不含治理面/信任边界段，抬升只能来自属性 floor。
     const dir = strengthFixture(t, { version: 1, profile: 'rapid' }, {
       files: {
@@ -640,10 +639,9 @@ describe('P3 缺陷回归：attribute floor 合法形态', RT, () => {
   });
 
   test('codex 系模块（root=packages/pay + paths=["src/**"]）：仓根相对路径必须命中 → strict/floor:attribute', (t) => {
-    // 红因=D2：attributeFloorProfile 裸 matchesGlob("packages/pay/src/pay.js", "src/**")
-    // 锚定 ^src 永不命中；正确语义是先剥 module.root 前缀再匹配 root 内 glob
-    // （catalog.mjs moduleMatches 即此语义）。夹具隔离：路径段无 auth/security/secrets，
-    // 抬升只能来自属性 floor。
+    // 锁定（D2）：codex 系模块的仓根相对路径必须先剥 module.root 前缀再匹配 root 内 glob
+    // （catalog.mjs moduleMatches 语义）——旧缺陷：裸 matchesGlob 锚定 ^src 永不命中。
+    // 夹具隔离：路径段无 auth/security/secrets，抬升只能来自属性 floor。
     const dir = strengthFixture(t, { version: 1, profile: 'rapid' }, {
       files: {
         '.kimi-base/module-catalog.json': JSON.stringify({
@@ -667,8 +665,8 @@ describe('P3 缺陷回归：attribute floor 合法形态', RT, () => {
 
 describe('P3 缺陷回归：自定义档与内置档同名必须配置期拒绝', RT, () => {
   test('customProfiles.balanced 遮蔽内置档 → status 与 list 均 exit 1 配置错误（不得静默回落内置档）', (t) => {
-    // 红因=D3：resolveProfiles 先把内置四档填进 resolved，resolveCustom("balanced")
-    // 见 resolved.balanced 已存在即早退——同名自定义档被静默丢弃，生效的是内置档。
+    // 锁定（D3）：与内置档同名的 customProfiles 必须配置期拒绝，不得静默回落内置档
+    // （旧缺陷：resolveCustom 见内置档先占 resolved 即早退，同名自定义档被静默丢弃）。
     // 只断 exit 1 会被「未知动词 exit 1」假绿——必须同时点名被遮蔽的档名 balanced。
     const dir = strengthFixture(t, {
       version: 1,
@@ -737,8 +735,8 @@ describe('P3 收紧：decision log 截断保新', RT, () => {
 
 describe('P3 缺陷回归：strength 动词契约校验', RT, () => {
   test('未知 flag / 多余位置参数 / 重复 flag → exit 1 并点名违规项（不得旁路契约校验）', (t) => {
-    // 红因=D4：strength 契约单列于 STRENGTH_CONTRACT、未入 CONTRACTS，assertContract
-    // 查 CONTRACTS[verb] 落空直接 return——positional/flags/duplicates 约束全不生效。
+    // 锁定（D4）：strength 契约必须入 CONTRACTS 单源注册表（旧缺陷：单列于
+    // STRENGTH_CONTRACT，assertContract 查表落空直接 return——契约约束全被旁路）。
     // 每个子断言除 exit 1 外必须点名违规 token，防「别处报错凑出 exit 1」假绿。
     const dir = strengthFixture(t, { version: 1, profile: 'balanced' });
 

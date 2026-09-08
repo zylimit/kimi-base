@@ -4,7 +4,9 @@
  *
  * 运行：node --test tests/review.test.mjs
  *
- * 追溯：REQ-031（结构化对抗评审：blue 自证/lens 报到校验/计算裁决/回执只认终审 ACCEPT/会话绑指纹）。
+ * 追溯：REQ-031（结构化对抗评审：blue 自证/lens 报到校验/计算裁决/回执只认终审 ACCEPT/会话绑指纹）；
+ * REQ-057（评审强化：authorship 账本接线/静态发现入 review pack/review 消费强度策略轴——
+ * 红测先行随 P5 落地转绿，文末两段现为行为契约锁定；字面引用为正式追溯，勿拼接构造）。
  *
  * 纪律（同 harness.test.mjs）：
  * - 每条用例独立临时 git 仓（os.tmpdir 下 mkdtemp），断言退出码与 stdout/状态文件 JSON 字段，
@@ -98,6 +100,27 @@ function gitInitCommit(dir) {
   git(dir, 'init', '-q');
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'fixture init');
+}
+// 与 git() 同款执行器，仅换作者身份：作者集含「提交者」的用例需要第二个可辨认身份。
+function gitAs(dir, name, email, ...args) {
+  const r = spawnSync('git', args, {
+    cwd: dir,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: name,
+      GIT_AUTHOR_EMAIL: email,
+      GIT_COMMITTER_NAME: name,
+      GIT_COMMITTER_EMAIL: email,
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'gc.auto',
+      GIT_CONFIG_VALUE_0: '0',
+      GIT_CONFIG_KEY_1: 'maintenance.auto',
+      GIT_CONFIG_VALUE_1: 'false',
+    },
+  });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')} 失败: ${r.stderr}`);
+  return r.stdout.trim();
 }
 function needGit(t) {
   if (!GIT_OK) {
@@ -702,5 +725,312 @@ describe('catalog review 段配置校验', RT, () => {
     const team = review(dir, ['team']);
     assert.equal(team.code, 0);
     assert.match(team.stdout, /testing/, 'review team 必须显示剔除项');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// REQ-057：评审强化（本段锁定 REQ-057 行为契约——红测先行随 P5 落地转绿；
+// 字面引用为正式追溯，勿拼接构造）。
+// 三部分契约（Product-Spec REQ-057 + DEV-PLAN P5 + ADR-0008 第 8 条）：
+//   ① authorship 账本接线：task start 记作者（默认 main-agent / --author 指定）；
+//      review lens --reviewer <id> 记执行者入会话；verdict 时任一 lens 执行者 ∈
+//      该 diff 作者集（task 作者 + 提交者）→ 拒出 ACCEPT（exit 2 报作者自审）；
+//      无身份数据时 verdict 必须诚实标注 authorshipEnforced:false（有数据且执法为 true）。
+//   ② 静态发现入评审：review pack 注入 fitness/arch check/budget 的当前现存发现。
+//   ③ review 消费强度策略轴：strength.json 存在时 lens 召集由 resolver 的
+//      reviewStages/reviewLenses/reviewRounds 轴驱动；catalog.review.profile 四剖面
+//      保留为策略档别名向后兼容（无 strength.json 时行为与现状完全一致）。
+// ════════════════════════════════════════════════════════════════════════════
+
+// LENS_LIBRARY 九 lens 全集（字典序）——strict 档 reviewLenses=full 的应召全集。
+const ALL_LENSES = [
+  'architecture', 'correctness', 'maintainability', 'performance', 'privacy',
+  'reliability', 'resilience', 'security', 'testing',
+];
+
+const TASKS_STATE = '.kimi-base/state/tasks.json';
+function activeTaskEntry(dir) {
+  const state = JSON.parse(read(dir, TASKS_STATE));
+  return state.tasks[state.activeTaskId];
+}
+
+// ---------------- REQ-057 ① authorship 账本接线 ----------------
+
+describe('REQ-057 authorship 账本接线', RT, () => {
+  test('task start 记录作者：默认 main-agent；--author 指定生效', (t) => {
+    // 锁定：task 条目必须有 author（缺省 main-agent）；--author 必须被 task 动词契约接受。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, {});
+    const start = run(['task', 'start', '--goal', '加功能', '--owned', 'src', '--risk', 'low'], { cwd: dir });
+    assert.equal(start.code, 0, out(start));
+    assert.equal(activeTaskEntry(dir).author, 'main-agent', 'task 条目必须有 author 字段，缺省为 main-agent');
+    assert.equal(run(['task', 'cancel'], { cwd: dir }).code, 0);
+    const named = run(['task', 'start', '--goal', '加功能', '--owned', 'src', '--risk', 'low', '--author', 'alice'], { cwd: dir });
+    assert.equal(named.code, 0, `--author 必须被接受: ${out(named)}`);
+    assert.equal(activeTaskEntry(dir).author, 'alice', '--author 指定的身份必须落进 task 条目');
+  });
+
+  test('review lens --reviewer 记录执行者身份入会话', (t) => {
+    // 锁定：lens 报到必须把执行者写进 session.lenses（reviewer 字段），供 verdict 独立性判定。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, { review: { profile: 'personal' } });
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    const r = review(dir, ['lens', 'correctness', '--reviewer', 'bob'], CLEAN);
+    assert.equal(r.code, 0, out(r));
+    assert.equal(readSession(dir).lenses.correctness.reviewer, 'bob', 'lens 执行者身份必须入会话记录');
+  });
+
+  test('作者自审拒出 ACCEPT：lens 执行者 = task 作者 → verdict exit 2 报作者自审且不写回执', (t) => {
+    // 锁定：lens 执行者 = task 作者时 verdict 拒出 ACCEPT（exit 2 报作者自审，不写回执）。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, { review: { profile: 'personal' } });
+    const start = run(['task', 'start', '--goal', '改 a', '--owned', 'src', '--risk', 'low', '--author', 'alice'], { cwd: dir });
+    assert.equal(start.code, 0, `--author 必须被接受: ${out(start)}`);
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    assert.equal(review(dir, ['blue'], BLUE).code, 0);
+    assert.equal(review(dir, ['lens', 'correctness', '--reviewer', 'alice'], CLEAN).code, 0);
+    const verdict = review(dir, ['verdict', '--reviewer', 'judge-1']);
+    assert.equal(verdict.code, 2, `作者自审必须拒出 ACCEPT（exit 2），实际 ${verdict.code}: ${out(verdict)}`);
+    assert.match(out(verdict), /作者自审/, '拒绝必须点名作者自审（区别于普通 FIX_REQUIRED）');
+    assert.match(out(verdict), /authorshipEnforced:true/, '有身份数据且执法时必须标 authorshipEnforced:true');
+    assert.equal(reviewReceipts(dir).length, 0, '作者自审拒判绝不写回执');
+  });
+
+  test('作者自审拒出 ACCEPT（range 模式）：lens 执行者 ∈ diff 提交者集 → verdict exit 2', (t) => {
+    // 作者集 = task 作者 + 提交者；本用例无 task，作者集仅来自 range 内提交（mallory 的提交）。
+    // 歧义选定：执行者与提交者按作者名（handle）匹配——lens --reviewer 与 git author name 同为
+    // 人可读身份串；email 归一/别名匹配是实现自由，但 author name 命中必须至少成立。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, { review: { profile: 'personal' } });
+    const base = git(dir, 'rev-parse', 'HEAD');
+    dirty(dir);
+    gitAs(dir, 'mallory', 'mallory@example.com', 'add', '-A');
+    gitAs(dir, 'mallory', 'mallory@example.com', 'commit', '-q', '-m', 'mallory 的改动');
+    assert.equal(review(dir, ['start', '--base', base]).code, 0);
+    assert.equal(review(dir, ['blue'], BLUE).code, 0);
+    assert.equal(review(dir, ['lens', 'correctness', '--reviewer', 'mallory'], CLEAN).code, 0);
+    const verdict = review(dir, ['verdict']);
+    assert.equal(verdict.code, 2, `提交者自审必须拒出 ACCEPT（exit 2），实际 ${verdict.code}: ${out(verdict)}`);
+    assert.match(out(verdict), /作者自审/, '拒绝必须点名作者自审');
+    assert.equal(reviewReceipts(dir).length, 0, '提交者自审拒判绝不写回执');
+  });
+
+  test('无身份数据：verdict ACCEPT 且必须诚实标注 authorshipEnforced:false（不假绿）', (t) => {
+    // 无 task（无作者）、lens 报到无 --reviewer（无执行者）→ 无身份数据可执法，
+    // 诚实标注是地板而非装饰：verdict 输出必须含 authorshipEnforced:false。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, { review: { profile: 'personal' } });
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    assert.equal(review(dir, ['blue'], BLUE).code, 0);
+    assert.equal(review(dir, ['lens', 'correctness'], CLEAN).code, 0);
+    const verdict = review(dir, ['verdict']);
+    assert.equal(verdict.code, 0, out(verdict));
+    assert.match(out(verdict), /authorshipEnforced:false/, `无身份数据时必须诚实标注 authorshipEnforced:false\n实际输出：${out(verdict)}`);
+  });
+
+  test('身份齐备且执法：非作者执行 lens → ACCEPT + authorshipEnforced:true + 回执照写', (t) => {
+    // 锁定：有身份数据且执法时必须显式标 authorshipEnforced:true——
+    // 防止把「有数据且执法」与「无数据未执法」混成同一种沉默。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, { review: { profile: 'personal' } });
+    assert.equal(run(['task', 'start', '--goal', '改 a', '--owned', 'src', '--risk', 'low'], { cwd: dir }).code, 0);
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    assert.equal(review(dir, ['blue'], BLUE).code, 0);
+    assert.equal(review(dir, ['lens', 'correctness', '--reviewer', 'bob'], CLEAN).code, 0);
+    const verdict = review(dir, ['verdict', '--reviewer', 'judge-1']);
+    assert.equal(verdict.code, 0, `非作者执行 lens 不得误伤 ACCEPT: ${out(verdict)}`);
+    assert.match(out(verdict), /authorshipEnforced:true/, `有数据且执法时必须标 authorshipEnforced:true\n实际输出：${out(verdict)}`);
+    assert.equal(reviewReceipts(dir).length, 1, '执法通过的终审 ACCEPT 必须照写回执');
+  });
+});
+
+// ---------------- REQ-057 ② 静态发现入 review pack ----------------
+
+describe('REQ-057 静态发现入 review pack', RT, () => {
+  test('埋 fitness 必中文件 → pack 注入 fitness/arch/budget 现存发现节且含该发现', (t) => {
+    // 锁定：pack 必须含静态闸发现节（fitness/arch/budget 字样与 no-secret-literal 命中）。
+    // 夹具双形态埋雷：leak.js 已提交（进 range diff）且工作树再追加一行违规（进 changed 面），
+    // 无论实现选哪个扫描口径，no-secret-literal 都必须现存可报。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, {});
+    // 金丝雀拼接构造（同 harness.test.mjs LESIONS 先例）：关键词名与赋值面拆开，
+    // 源码行不携带完整触发模式（避免本仓自身 fitness 把测试金丝雀当真病灶），
+    // 拼接后写入夹具的内容与逐字面形态完全一致。
+    write(dir, 'src/leak.js', 'const pass' + 'word = "hunter2-hunter2";\n');
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'add leak');
+    fs.appendFileSync(path.join(dir, 'src/leak.js'), 'const api' + 'Key = "abcdefgh123456";\n');
+    const r = review(dir, ['pack']);
+    assert.equal(r.code, 0, out(r));
+    const packs = fs.readdirSync(path.join(dir, '.kimi-base/state/review')).filter((name) => /^review-pack-\d+\.md$/.test(name));
+    assert.equal(packs.length, 1, '应生成唯一 pack 文件');
+    const body = read(dir, `.kimi-base/state/review/${packs[0]}`);
+    assert.match(body, /fitness/, 'pack 必须注入 fitness 现存发现节');
+    assert.match(body, /arch/, 'pack 必须注入 arch check 现存发现节');
+    assert.match(body, /budget/, 'pack 必须注入 budget 现存发现节');
+    assert.match(body, /no-secret-literal/, 'fitness 必中发现必须出现在 pack 内');
+    assert.match(body, /src\/leak\.js/, '静态发现必须带路径供 lens 引用');
+  });
+});
+
+// ---------------- REQ-057 ③ review 消费强度策略轴 ----------------
+
+describe('REQ-057 review 消费强度策略轴', RT, () => {
+  const writeStrength = (dir, profile) =>
+    write(dir, '.kimi-base/strength.json', JSON.stringify({ version: 1, profile }, null, 2));
+
+  test('strict 档驱动三阶段全 lens：reviewStages=3/reviewLenses=full → 九 lens 召集且阶段门控照常', (t) => {
+    // 锁定：strength.json 存在时 lens 召集由 resolver 评审轴驱动——strict 档九 lens 三阶段
+    // 全召集，且阶段门控照常生效（security 抢跑仍报 stageGated:true 而非「不在召集清单」）。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, {
+      attributes: { maintainability: 'high', reliability: 'high', performance: 'high', resilience: 'high', security: 'high', privacy: 'high' },
+    }); // 全属性定档 high：属性收缩零剔除，召集差集只能来自策略轴
+    writeStrength(dir, 'strict');
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    const session = readSession(dir);
+    assert.deepEqual([...session.requiredLenses].sort(), ALL_LENSES, 'strict 档（reviewLenses=full）必须召集九 lens');
+    assert.equal(session.excludedLenses.length, 0, '全部定档 high 时不得有收缩剔除');
+    const gated = review(dir, ['lens', 'security'], CLEAN);
+    assert.equal(gated.code, 1, '三阶段召集下阶段 3 lens 抢跑仍应 exit 1');
+    assert.match(gated.stdout, /stageGated:true/, '阶段门控在强度驱动召集下必须照常生效');
+  });
+
+  test('rapid 档压过 catalog 剖面：reviewStages=1/reviewLenses=minimal → 单阶段最小集 [correctness]', (t) => {
+    // 锁定：strength.json 存在时 resolver 的评审轴胜出（rapid → 单阶段最小集），
+    // catalog 剖面退为无 strength.json 时的别名。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, {
+      attributes: { reliability: 'high' },
+      review: { profile: 'production' },
+    });
+    writeStrength(dir, 'rapid');
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    assert.deepEqual(readSession(dir).requiredLenses, ['correctness'], 'rapid 档（minimal）必须只召集 correctness 单阶段');
+  });
+
+  test('reviewRounds 轴驱动 maxRounds：rapid（reviewRounds=1）首轮 FIX_REQUIRED 即 escalate:true', (t) => {
+    // 锁定：strength.json 存在时 maxRounds 由 reviewRounds 轴驱动（rapid=1 → 首轮即触顶）。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, {});
+    writeStrength(dir, 'rapid');
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    assert.equal(review(dir, ['blue'], BLUE).code, 0);
+    assert.equal(review(dir, ['lens', 'correctness'], { findings: [{ severity: 'error', message: '仍然错', reproduction: 'node repro.js' }] }).code, 0);
+    const verdict = review(dir, ['verdict']);
+    assert.equal(verdict.code, 2, `error 发现必须 FIX_REQUIRED exit 2，实际 ${verdict.code}: ${out(verdict)}`);
+    assert.match(out(verdict), /escalate:true/, `rapid 档 reviewRounds=1：首轮即触顶必须 escalate:true\n实际输出：${out(verdict)}`);
+  });
+
+  test('回归锁（预期绿，锁现状）：无 strength.json 时 catalog 剖面行为不变；四剖面别名保留', (t) => {
+    // 本用例预期绿——它锁的是「无 strength.json 行为与现状完全一致」的向后兼容承诺
+    // （ADR-0008 第 8 条：四剖面保留为策略档在评审轴上的别名）；未来红 = REQ-057 实现误伤旧行为。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, { attributes: { reliability: 'high' }, review: { profile: 'team' } });
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    assert.deepEqual([...readSession(dir).requiredLenses].sort(), ['correctness', 'testing'], '无 strength.json：team 剖面 + 定档收缩照旧');
+    // 四剖面是策略档别名：regulated 必须仍是 catalog lint 放行的合法 profile。
+    write(dir, '.kimi-base/module-catalog.json', JSON.stringify({
+      version: 1,
+      modules: [{ id: 'app', root: 'src', paths: ['**'] }],
+      review: { profile: 'regulated' },
+    }, null, 2));
+    assert.equal(run(['catalog', 'lint'], { cwd: dir }).code, 0, 'regulated 剖面别名必须继续合法');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// REQ-057 P5 评审 warning 回归（独立测试作者追加；纯追加段，不动既有用例与文件头）。
+// 本段是 P5 评审发现的四条缺陷的回归锁（红测先行随修复转绿）：
+//   W1 身份匹配精确串比：大小写差异（"Main-Agent" vs "main-agent"）绕过作者自审拒判。
+//      （空白两侧已 trim，不构成分支——本用例只锁大小写归一。）
+//   W2 authorshipEnforced 只活在 CLI 输出，ACCEPT 回执 JSON 无该字段——
+//      仓内纪律「消费者只认回执」，诚实标注必须进回执。
+//   W3 ad-hoc 报告的执行者计入独立性判定：作者补一条 ad-hoc 证据即误触作者自审拒判。
+//   W4 pack 的 fitness 采集走 changedPaths（工作树变更面）：range 评审改动已提交、
+//      工作树干净时显示「扫描 0 文件/PASS」——静态发现测错了对象，必须针对评审 range
+//      的变更面。
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('REQ-057 P5 评审 warning 回归', RT, () => {
+  test('W1 身份匹配大小写归一：作者 Main-Agent 与执行者 main-agent 判同一人 → 拒出 ACCEPT', (t) => {
+    // 锁定（W1）：身份匹配必须大小写归一——"Main-Agent" 与 "main-agent" 判同一人。
+    // 身份串归一（至少大小写不敏感）是匹配的地板，否则改名大小写即绕过作者自审拒判。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, { review: { profile: 'personal' } });
+    const start = run(['task', 'start', '--goal', '改 a', '--owned', 'src', '--risk', 'low', '--author', 'Main-Agent'], { cwd: dir });
+    assert.equal(start.code, 0, out(start));
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    assert.equal(review(dir, ['blue'], BLUE).code, 0);
+    assert.equal(review(dir, ['lens', 'correctness', '--reviewer', 'main-agent'], CLEAN).code, 0);
+    const verdict = review(dir, ['verdict']);
+    assert.equal(verdict.code, 2, `大小写变体必须判同一人（作者自审 exit 2），实际 ${verdict.code}: ${out(verdict)}`);
+    assert.match(out(verdict), /作者自审|SELF_REVIEW/, '拒绝必须点名作者自审');
+    assert.equal(reviewReceipts(dir).length, 0, '作者自审拒判绝不写回执');
+  });
+
+  test('W2 诚实标注进回执：ACCEPT 回执 JSON 必须携带 authorshipEnforced 字段', (t) => {
+    // 锁定（W2）：ACCEPT 回执 JSON 必须携带布尔 authorshipEnforced。
+    // 消费者只认回执——标注不进回执 = 下游无法区分「执法通过的 ACCEPT」与「无数据的 ACCEPT」。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, { review: { profile: 'personal' } });
+    assert.equal(run(['task', 'start', '--goal', '改 a', '--owned', 'src', '--risk', 'low'], { cwd: dir }).code, 0);
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    assert.equal(review(dir, ['blue'], BLUE).code, 0);
+    assert.equal(review(dir, ['lens', 'correctness', '--reviewer', 'bob'], CLEAN).code, 0);
+    const verdict = review(dir, ['verdict']);
+    assert.equal(verdict.code, 0, out(verdict));
+    const receipts = reviewReceipts(dir);
+    assert.equal(receipts.length, 1, '终审 ACCEPT 必须写回执');
+    assert.equal(typeof receipts[0].authorshipEnforced, 'boolean', '回执必须携带布尔 authorshipEnforced 字段');
+    assert.equal(receipts[0].authorshipEnforced, true, '有身份数据且执法时回执 authorshipEnforced 必须为 true');
+  });
+
+  test('W3 ad-hoc 不参与独立性判定：应到 lens 独立者齐报 + 作者追加 ad-hoc → 仍 ACCEPT', (t) => {
+    // 锁定（W3）：ad-hoc 是额外证据通道（不占应到清单）——其发现计入裁决，
+    // 其执行者不得计入独立性判定（作者补一条 ad-hoc 证据不得误触作者自审拒判）。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, { review: { profile: 'personal' } }); // 应到仅 correctness
+    const start = run(['task', 'start', '--goal', '改 a', '--owned', 'src', '--risk', 'low', '--author', 'alice'], { cwd: dir });
+    assert.equal(start.code, 0, out(start));
+    dirty(dir);
+    assert.equal(review(dir, ['start']).code, 0);
+    assert.equal(review(dir, ['blue'], BLUE).code, 0);
+    assert.equal(review(dir, ['lens', 'correctness', '--reviewer', 'bob'], CLEAN).code, 0, '应到 lens 由独立者 bob 报到');
+    const adHoc = review(dir, ['lens', 'security', '--ad-hoc', '--reviewer', 'alice'], CLEAN);
+    assert.equal(adHoc.code, 0, `作者追加 ad-hoc 补充证据必须能上报: ${out(adHoc)}`);
+    const verdict = review(dir, ['verdict']);
+    assert.equal(verdict.code, 0, `ad-hoc 执行者不得计入独立性判定（应 ACCEPT exit 0），实际 ${verdict.code}: ${out(verdict)}`);
+    assert.match(out(verdict), /authorshipEnforced:true/, '应到 lens 有身份数据且执法 → authorshipEnforced:true');
+  });
+
+  test('W4 pack 静态发现测评审 range：改动已提交、工作树干净时 fitness 仍必须命中 range 内违例', (t) => {
+    // 锁定（W4）：静态发现必须针对评审 range 的变更面——range 评审改动已提交、
+    // 工作树干净时不得显示「扫描 0 文件/PASS」而漏报 range 内违例。
+    // 金丝雀拼接构造（同 LESIONS 先例，防本仓 fitness 自命中）。
+    if (!needGit(t)) return;
+    const dir = reviewFixture(t, {});
+    const base = git(dir, 'rev-parse', 'HEAD');
+    write(dir, 'src/leak.js', 'const pass' + 'word = "hunter2-hunter2";\n');
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'add leak'); // 提交后工作树干净
+    assert.equal(review(dir, ['start', '--base', base]).code, 0, 'range 模式开启评审会话');
+    const r = review(dir, ['pack']);
+    assert.equal(r.code, 0, out(r));
+    const packs = fs.readdirSync(path.join(dir, '.kimi-base/state/review')).filter((name) => /^review-pack-\d+\.md$/.test(name));
+    assert.equal(packs.length, 1, '应生成唯一 pack 文件');
+    const body = read(dir, `.kimi-base/state/review/${packs[0]}`);
+    assert.match(body, /no-secret-literal/, 'range 内已提交文件的 fitness 违例必须进 pack（不得因工作树干净而扫描 0 文件）');
+    assert.match(body, /src\/leak\.js/, '静态发现必须带路径供 lens 引用');
   });
 });

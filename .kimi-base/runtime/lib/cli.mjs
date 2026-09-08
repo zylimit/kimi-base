@@ -404,7 +404,7 @@ async function dispatchCommand(argv) {
     case 'task': {
       const ctx = await needProject();
       if (sub === 'start') {
-        const task = await taskStart(ctx, { goal: flags.goal, owned: flags.owned, risk: flags.risk });
+        const task = await taskStart(ctx, { goal: flags.goal, owned: flags.owned, risk: flags.risk, author: flags.author });
         printResult('任务已开始', [
           `id：${task.id}`,
           `risk：${task.risk}；owned：${task.ownedPaths.join(', ')}`,
@@ -652,7 +652,7 @@ async function dispatchCommand(argv) {
       if (sub === 'lens') {
         const name = rest[0];
         if (!name) throw usageError('review lens 需要 lens 名（review lens <name> [--ad-hoc]，stdin 读 findings JSON）');
-        const result = await recordLens(ctx, name, await readStdinJson('review lens'), { adHoc: Boolean(flags['ad-hoc']) });
+        const result = await recordLens(ctx, name, await readStdinJson('review lens'), { adHoc: Boolean(flags['ad-hoc']), reviewer: flags.reviewer });
         if (result.refused) {
           printResult('lens 报到被拒（exit 1）', [`stageGated:${result.stageGated === true}`, result.reason]);
           return 1;
@@ -666,6 +666,9 @@ async function dispatchCommand(argv) {
         const result = await reviewVerdict(ctx, { reviewer: flags.reviewer, notes: flags.notes });
         printResult(`评审裁决：${result.verdict}`, [
           `round=${result.round}/${result.maxRounds}；stage=${result.stage}（${REVIEW_STAGES[result.stage]}）；final:${result.final}`,
+          `authorshipEnforced:${result.authorshipEnforced}`,
+          // 降级场景（authorshipEnforced=false）selfReview 仍会计算——只在真拒判时打印，防 ACCEPT 与拒判文案同屏矛盾。
+          ...(result.verdict === 'SELF_REVIEW_REJECTED' && result.selfReview?.length ? [`作者自审：lens 执行者 ${result.selfReview.join(', ')} 属于本 diff 作者集（task 作者 ∪ range 提交者）——拒出 ACCEPT，请换独立评审者重报 lens 后再裁决`] : []),
           ...result.errorFindings.slice(0, 20).map((finding) => `- error [${finding.lens}] ${finding.location ?? finding.reproduction ?? ''}：${finding.message}`),
           ...(result.unableLenses.length ? [`无法结论的应到 lens：${result.unableLenses.join(', ')}`] : []),
           ...(result.escalate ? ['escalate:true'] : []),

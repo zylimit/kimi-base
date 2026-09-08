@@ -176,14 +176,14 @@
     {
       "path": ".kimi-base/runtime/lib/cli-contracts.mjs",
       "source": ".kimi-base/runtime/lib/cli-contracts.mjs",
-      "sha256": "9a80265a1b34c9c21498fa8bdc31fc1f36896feaec96d1a4f60c39a616a4d271",
-      "bytes": 8027
+      "sha256": "f22679c1d2e961d0ab8e062859cdf6f08646a05dabdf4a39378aeae99aef7aa5",
+      "bytes": 8055
     },
     {
       "path": ".kimi-base/runtime/lib/cli.mjs",
       "source": ".kimi-base/runtime/lib/cli.mjs",
-      "sha256": "adf85135dcfef2790b9781e2aa48c34650301df50e84cbd8ef314c6780fdaa72",
-      "bytes": 89096
+      "sha256": "1fd32731363fc017e922ec0fce3b1d87a9500bb69b5db374165802a4cce5643f",
+      "bytes": 89647
     },
     {
       "path": ".kimi-base/runtime/lib/cochange.mjs",
@@ -308,8 +308,8 @@
     {
       "path": ".kimi-base/runtime/lib/review.mjs",
       "source": ".kimi-base/runtime/lib/review.mjs",
-      "sha256": "3eece88a1afcc902e537d23bfb89d8e68b56ef113bf32ae1ad3ebc99f690aa70",
-      "bytes": 29442
+      "sha256": "d2e955bb5529cce97e41218f40d161f7f7707dc65506583dc011f0f4cbcb40cb",
+      "bytes": 37002
     },
     {
       "path": ".kimi-base/runtime/lib/scan.mjs",
@@ -338,8 +338,8 @@
     {
       "path": ".kimi-base/runtime/lib/tasks.mjs",
       "source": ".kimi-base/runtime/lib/tasks.mjs",
-      "sha256": "8e3e14cd34d0718c3651d067b64a88d0705af1a3dde4abcada254bffd2361dc5",
-      "bytes": 6208
+      "sha256": "07b96c4d037d88fc26c7fc5fc73db6f3ec5a8e1d6227bad3603eeb4675e8fa46",
+      "bytes": 6416
     },
     {
       "path": ".kimi-base/runtime/lib/verify.mjs",
@@ -574,8 +574,8 @@
     {
       "path": ".kimi-code/skills/product-spec-builder/SKILL.md",
       "source": ".kimi-code/skills/product-spec-builder/SKILL.md",
-      "sha256": "aa87c9be277210a312ee1ca1b52d33f2da4124f77bdc1b547995295f917f5b58",
-      "bytes": 18792
+      "sha256": "75b222bd92d3a9d0b0c16608e75b187dbb7f733756067fbc5b79de1a26f67567",
+      "bytes": 19201
     },
     {
       "path": ".kimi-code/skills/progress-recorder/SKILL.md",
@@ -639,5 +639,5 @@
       "seed": true
     }
   ],
-  "digest": "c08f7d28daeb45e5e89cb6da872a0403b908132902e483d094275c9ac0172796"
+  "digest": "117c1d6376a51e98421b06700627b4eb63d8fdf186b80780c8a8d7be24962641"
 }

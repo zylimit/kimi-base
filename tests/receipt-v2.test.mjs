@@ -1,9 +1,9 @@
 /**
  * tests/receipt-v2.test.mjs
  * REQ-053 Receipt v2 绑定面 / REQ-054 fast 证据贷款账本 / REQ-055 可提交证据模式
- * 的行为测试——红测先行于实现（v3.0 P4，Product-Spec.md 第 5 节「v3.0 强度可计算的治理」，
- * 设计依据 docs/adr/0009-receipt-v2-loan-ledger.md）。本文件对 REQ-053 REQ-054 REQ-055 的
- * 字面引用即正当追溯（同 strength.test.mjs 先例：PLANNED_HAS_TESTS 警告属预期工作流）。
+ * 的行为测试——红测先行于实现，已随 v3.0 P4（含四轮评审修复）全部转绿
+ * （Product-Spec.md 第 5 节「v3.0 强度可计算的治理」，设计依据 docs/adr/0009-receipt-v2-loan-ledger.md）。
+ * 本文件对 REQ-053 REQ-054 REQ-055 的字面引用即正当追溯。
  *
  * 运行：node --test tests/receipt-v2.test.mjs
  *
@@ -12,10 +12,10 @@
  * （HarnessError 走 stderr）一律用 out(r)=stdout+stderr 合并视图，只断字段性 token
  * （strength.test.mjs 先例）。
  *
- * 红绿预期（写测时点，特性未实现）：除「v1 回执向后兼容」「P7b 回归锁定」「local 模式不变」
- * 三条特别标注的回归锁定用例外，全部用例必须红；红因必须是行为缺失（缺绑定字段 / 缺
- * DEFERRED 账本条目 / 缺 FAST_MODE_DEBT 报告 / harness.json 拒绝 evidence 配置段），
- * 不是夹具或语法错误。
+ * 红测先行记录：写测时点特性未实现，除「v1 回执向后兼容」「P7b 回归锁定」「local 模式不变」
+ * 三条回归锁定用例外全部红（红因=行为缺失：缺绑定字段 / 缺 DEFERRED 账本条目 /
+ * 缺 FAST_MODE_DEBT 报告 / harness.json 拒绝 evidence 配置段）；落地后全绿，
+ * 本文件现为 REQ-053/054/055 契约回归锁。
  *
  * 契约歧义点的选定解释（逐条注释在用例处）：
  *   1) policyHash/catalogHash 的「显式缺省标记」选定为：键必须存在且值 === null（JSON null），
@@ -233,7 +233,7 @@ describe('REQ-053 Receipt v2 绑定面', RT, () => {
     const receipt = JSON.parse(read(dir, '.kimi-base/state/receipts/static-ok.json'));
     // 既有绑定面仍在（字段名 fingerprint 是 diffHash 的既有出口，两者任一皆可）
     assert.ok(receipt.fingerprint ?? receipt.diffHash, '回执必须保留既有 diffHash/fingerprint 绑定');
-    // 红因=缺字段：现实现回执无三个新绑定字段
+    // 锁定：回执必须携带三个新绑定字段（policyHash/engineHash/catalogHash）
     assert.ok(typeof receipt.policyHash === 'string' && receipt.policyHash.length > 0,
       `有 strength.json 时回执必须绑 policyHash（strength 解析输出），实得 ${JSON.stringify(receipt.policyHash)}`);
     assert.ok(typeof receipt.engineHash === 'string' && receipt.engineHash.length > 0,
@@ -269,7 +269,7 @@ describe('REQ-053 Receipt v2 绑定面', RT, () => {
     git(dir, 'add', '-A');
     const stale = run(['receipt', 'verify'], { cwd: dir });
     assertStaleNotTampered(stale, '策略收紧');
-    // 红因锚点：现实现的陈旧报告只点名指纹移动，不会点名 policyHash
+    // 锁定：陈旧报告必须点名漂移的绑定面（policyHash），不只点名指纹移动
     assert.match(out(stale), /policyHash|policy|策略/i,
       `陈旧原因必须点名 policyHash（策略绑定面），实际输出：\n${out(stale)}`);
   });
@@ -386,7 +386,7 @@ describe('REQ-054 fast 证据贷款账本', RT, () => {
     assert.equal(run(['fast', 'on'], { cwd: dir }).code, 0, 'fast on 应成功');
     const g1 = run(['gate'], { cwd: dir });
     assert.match(out(g1), /SKIPPED static-ok/, '前置：窗口内检查必须已被跳过');
-    // 红因锚点：债发生后 risk 必须报告（现实现无 FAST_MODE_DEBT 概念）
+    // 锁定：债发生后 risk 必须报 FAST_MODE_DEBT
     const inDebt = run(['risk', 'scan'], { cwd: dir });
     assert.match(out(inDebt), /FAST_MODE_DEBT/, `欠债期间 risk 必须报 FAST_MODE_DEBT\n实际输出：${out(inDebt)}`);
     // 窗口内再 gate 一次（仍 SKIPPED，没有 fresh PASS）→ 不算偿还
@@ -420,7 +420,7 @@ describe('REQ-054 fast 证据贷款账本', RT, () => {
     assert.match(out(g), /sec-scan/, 'protected 检查必须出现在结果里（被执行，非延期）');
     assert.doesNotMatch(out(g), /sec-scan[^\n]*SKIP/i, 'protected 检查不得被 SKIPPED');
     const deferred = readLedger(dir).filter((e) => e.kind === 'deferred');
-    // 红因锚点（防假绿）：必须先证明账本里确实有 DEFERRED 条目，「不产 DEFERRED」的
+    // 防假绿：必须先证明账本里确实有 DEFERRED 条目，「不产 DEFERRED」的
     // 否定断言才不是空真。
     assert.ok(deferred.length >= 1, 'fast 窗口必须至少产出 static-ok 的 DEFERRED 条目（否则本用例的否定断言为空真）');
     assert.deepEqual(
@@ -454,8 +454,7 @@ describe('REQ-054 fast 证据贷款账本', RT, () => {
 describe('REQ-055 可提交证据模式', RT, () => {
   test('committed 模式：回执与账本纳入 git 视野（未被忽略、git status 可见）；证据日志本体永不入库', (t) => {
     if (!needGit(t)) return;
-    // 红因锚点：现实现的 harness.json 严格校验拒绝 evidence 段（CONFIG_INVALID exit 1）——
-    // committed 模式尚未存在。gate exit 0 是第一处红。
+    // 锁定：harness.json 必须接受 evidence 段（committed 模式），gate 跑通是入口断言。
     const dir = gateFixture(t, [
       PASS_CHECK,
       // 输出 >4000 字节强制证据日志落盘（writeEvidence 的既有阈值），检验日志永不入库
@@ -487,7 +486,7 @@ describe('REQ-055 可提交证据模式', RT, () => {
 
   test('committed 模式：git clone 换机后 receipt verify 直接 exit 0（不需重跑 gate）', (t) => {
     if (!needGit(t)) return;
-    // 红因锚点同上：evidence 配置段未存在，gate 先红。
+    // 锁定同上：committed 模式配置被接受、gate 跑通后 clone 可验。
     const dir = gateFixture(t, [PASS_CHECK], { harnessExtra: { evidence: { mode: 'committed' } } });
     const g = run(['gate'], { cwd: dir });
     assert.equal(g.code, 0, `committed 模式下 gate 应跑通: ${out(g)}`);
@@ -543,7 +542,7 @@ describe('REQ-055 可提交证据模式', RT, () => {
     writeHarness(bad, { evidence: { mode: 'turbo' } });
     const rejected = run(['fast', 'status'], { cwd: bad });
     assert.equal(rejected.code, 1, `非法 evidence.mode 必须配置期 exit 1，实得 ${rejected.code}: ${out(rejected)}`);
-    // 红因锚点：现实现的报错是「未知字段 evidence」，不会点名非法值 turbo——只断 exit 1 会假绿。
+    // 防假绿：只断 exit 1 不够（「未知字段 evidence」式报错同样 exit 1）——必须点名非法值 turbo。
     assert.ok(out(rejected).includes('turbo'), `配置错误必须点名非法值 turbo\n实际输出：${out(rejected)}`);
     const ok = mkdtemp(t);
     writeHarness(ok, { evidence: { mode: 'local' } });
@@ -552,9 +551,9 @@ describe('REQ-055 可提交证据模式', RT, () => {
   });
 });
 
-// ---------------- P4 评审 error 级缺陷红测（REQ-053/054/055 目标语义；写测时点全部必须红） ----------------
+// ---------------- P4 评审 error 级缺陷回归锁（REQ-053/054/055 目标语义；红测先行随修复转绿） ----------------
 //
-// 红因核对表（逐条在断言处注释；红因必须是缺陷本身，不是夹具或语法错误）：
+// 缺陷锚点（P4 评审发现，修复语义逐条在用例处注释）：
 //   D1 镜像伪造 fail-open（REQ-053/verify.mjs）：DRIFT 收窄后，伪造 receipts/ 镜像
 //      （FAIL→PASS + 重算 contentHash 自洽，新哈希不在账本历史）verify exit 0 放行。
 //      目标：镜像必须字段级对账账本最新条目（id/checkId/status/fingerprint/绑定面/证据哈希一致），
@@ -575,7 +574,7 @@ describe('REQ-055 可提交证据模式', RT, () => {
 //      不入库，clone 上 policyHash 失配 exit 4 且无偿还路径。目标：strength set 输出显式警告
 //      「本地覆盖不入库」；verify 的 policyHash 失配报文给偿还路径指引（点名如何恢复一致）。
 
-describe('REQ-053 P4 红测：镜像伪造 fail-open', RT, () => {
+describe('REQ-053 P4 缺陷回归：镜像伪造 fail-open', RT, () => {
   test('伪造 receipts/ 镜像（FAIL→PASS + 重算 contentHash 自洽）→ verify exit 2 判篡改（字段级对账账本条目）', (t) => {
     if (!needGit(t)) return;
     const FAIL_CHECK = { id: 'static-fail', kind: 'static', command: 'node -e "process.exit(1)"' };
@@ -591,16 +590,15 @@ describe('REQ-053 P4 红测：镜像伪造 fail-open', RT, () => {
     // 新 contentHash 不在该 check 的账本历史中——不是回滚（DRIFT），是凭空伪造。
     rehashReceiptFile(receiptPath, (receipt) => { receipt.status = 'PASS'; });
     const forged = run(['receipt', 'verify'], { cwd: dir });
-    // 红因：现实现 DRIFT 只覆盖「回滚到账本旧条目」，伪造哈希无对应条目即无罪；
-    // 链完好、镜像自洽、指纹 fresh → exit 0 放行（fail-open）。
-    // 目标：镜像必须字段级对账账本最新条目（status FAIL≠PASS）→ TAMPERED exit 2。
+    // 锁定（D1）：镜像必须字段级对账账本最新条目——凭空伪造（新 contentHash 不在账本
+    // 历史，非回滚）不得借「镜像自洽+链完好」fail-open，status FAIL≠PASS → TAMPERED exit 2。
     assert.equal(forged.code, 2, `伪造镜像（status FAIL→PASS）必须判篡改 exit 2，实得 ${forged.code}\n${out(forged)}`);
     assert.match(out(forged), /TAMPERED/, `伪造镜像必须报 TAMPERED\n实际输出：${out(forged)}`);
     assert.match(out(forged), /static-fail/, `报文必须点名被伪造的检查\n实际输出：${out(forged)}`);
   });
 });
 
-describe('REQ-054 P4 红测：轮转清债', RT, () => {
+describe('REQ-054 P4 缺陷回归：轮转清债', RT, () => {
   test('轮转归档未偿还 DEFERRED 后 risk 仍报 FAST_MODE_DEBT；窗口外 fresh PASS 偿还后（跨归档段）债务清', (t) => {
     if (!needGit(t)) return;
     // retention.ledgerMaxEntries=2：造债（verification SKIPPED + deferred 共 2 条数据条目）后
@@ -621,8 +619,8 @@ describe('REQ-054 P4 红测：轮转清债', RT, () => {
     assert.ok(archives.length >= 1, '前置：轮转必须已发生（存在归档段），否则本用例在测空气');
     assert.ok(!readLedger(dir).some((entry) => entry.kind === 'deferred'),
       '前置：deferred 债务条目必须已被归档出当前段（当前段无 deferred），否则没测到轮转清债面');
-    // 红因：fastDebtOf 只扫当前段（readLedgerEntries().entries）→ 归档即免债，risk 不再报。
-    // 目标：deferred 债务视图跨归档段存活——轮转不是免债路径。
+    // 锁定（D2）：deferred 债务视图必须跨归档段存活——轮转不是免债路径
+    // （旧缺陷：fastDebtOf 只扫当前段 → 归档即免债，risk 不再报）。
     const afterRotation = run(['risk', 'scan'], { cwd: dir });
     assert.match(out(afterRotation), /FAST_MODE_DEBT/,
       `轮转不得清债：deferred 被归档后 risk 必须仍报 FAST_MODE_DEBT\n实际输出：${out(afterRotation)}`);
@@ -636,7 +634,7 @@ describe('REQ-054 P4 红测：轮转清债', RT, () => {
   });
 });
 
-describe('REQ-055 P4 红测：committed 落盘证据 / 根 .gitignore / policyHash 本地覆盖', RT, () => {
+describe('REQ-055 P4 缺陷回归：committed 落盘证据 / 根 .gitignore / policyHash 本地覆盖', RT, () => {
   test('noisy 检查（证据日志落盘）clone 后 verify 不得判 MISSING（内联摘要随 git 走）；篡改内联摘要 → exit 2', (t) => {
     if (!needGit(t)) return;
     const NOISY_CHECK = { id: 'noisy', kind: 'static', command: 'node -e "process.stdout.write(\'x\'.repeat(5000))"' };
@@ -656,10 +654,9 @@ describe('REQ-055 P4 红测：committed 落盘证据 / 根 .gitignore / policyHa
     // 前置：外部 .log 永不入库（committed 的 state/.gitignore 忽略 evidence/）→ clone 上物理缺失。
     assert.ok(!exists(cloneDir, receipt.evidencePath),
       `前置：证据日志本体不得随 clone 迁移（${receipt.evidencePath}），否则本用例没测到「外部日志缺失」面`);
-    // 红因：现实现把外部日志缺失判为完整性失败 MISSING exit 2——与「committed 模式可移植、
-    // clone 后直接验链」自相矛盾（无 strength.json、同引擎、同 catalog，唯一失败面就是 MISSING）。
-    // 目标：回执携带内联证据摘要与有界尾部（decision-relevant 随 git 走，sha256 已在回执里验证），
-    // 外部 .log 降级为本地参考——缺失不判 MISSING。
+    // 锁定（D3）：回执携带内联证据摘要与有界尾部（decision-relevant 随 git 走，sha256 已在
+    // 回执里验证），外部 .log 降级为本地参考——clone 上缺失不判 MISSING（committed 可移植）。
+    // （无 strength.json、同引擎、同 catalog，唯一可能失败面就是 MISSING。）
     const verify = run(['receipt', 'verify'], { cwd: cloneDir });
     assert.equal(verify.code, 0,
       `clone 后 verify 不得因外部日志缺失判 MISSING（内联摘要已随回执入库），实得 ${verify.code}:\n${out(verify)}`);
@@ -679,9 +676,9 @@ describe('REQ-055 P4 红测：committed 落盘证据 / 根 .gitignore / policyHa
     // git 规则：父目录被根 .gitignore 排除后，嵌套 state/.gitignore 的例外规则捞不回来。
     write(dir, '.gitignore', '.kimi-base/state/\n');
     const g = run(['gate'], { cwd: dir });
-    // 红因（已实测）：现实现 ensureStateGitignore 写嵌套 .gitignore（对根排除无效）后
-    // git add -- .kimi-base/state 被根忽略规则整体拒绝 → HarnessError GIT_FAILED exit 1 裸报 git hint。
-    // 目标：committed 模式必须识别根 .gitignore 冲突，治理阻断 exit 2 + 可操作指引。
+    // 锁定（D4）：committed 模式必须识别根 .gitignore 冲突，治理阻断 exit 2 + 可操作指引
+    // （旧缺陷：ensureStateGitignore 写嵌套 .gitignore 对根排除无效，git add 被根规则整体
+    // 拒绝 → GIT_FAILED exit 1 裸栈）。
     assert.equal(g.code, 2,
       `根 .gitignore 压死 committed 模式必须是治理阻断 exit 2（非 GIT_FAILED exit 1 裸栈），实得 ${g.code}\n${out(g)}`);
     assert.match(out(g), /\.gitignore/, `报文必须点名 .gitignore 冲突\n实际输出：${out(g)}`);
@@ -699,8 +696,8 @@ describe('REQ-055 P4 红测：committed 落盘证据 / 根 .gitignore / policyHa
     // strength set 写 .kimi-base/state/strength.json（state 覆盖）——committed 模式该文件永不入库。
     const set = run(['strength', 'set', '--profile', 'strict'], { cwd: dir });
     assert.equal(set.code, 0, `strength set 应成功: ${out(set)}`);
-    // 红因 1：现实现只回显「写 .kimi-base/state/strength.json，覆盖 strength.json 的 profile」，
-    // 不警告该覆盖不随 git 入库——用户不知道 clone/换机后 policyHash 会假陈旧。
+    // 锁定（D5a）：strength set 必须显式警告「本地覆盖不随 git 入库」——
+    // 否则用户不知道 clone/换机后 policyHash 会假陈旧。
     assert.match(out(set), /不入库|不入\s*git|不随\s*(git|仓库|提交)|不会被?(提交|入库)/i,
       `committed 模式下 strength set 必须显式警告「本地覆盖不入库」\n实际输出：${out(set)}`);
     const g = run(['gate'], { cwd: dir });
@@ -718,15 +715,15 @@ describe('REQ-055 P4 红测：committed 落盘证据 / 根 .gitignore / policyHa
     assert.equal(verify.code, 4, `clone 上 policyHash 失配应判陈旧 exit 4，实得 ${verify.code}\n${out(verify)}`);
     assert.doesNotMatch(out(verify), /TAMPERED/, '本地覆盖未入库不是篡改，不得报 TAMPERED');
     assert.match(out(verify), /policyHash/, `陈旧原因必须点名 policyHash 绑定面\n实际输出：${out(verify)}`);
-    // 红因 2：现实现的报文只有「receipt … ≠ 当前 …」，不给恢复一致的偿还路径。
+    // 锁定（D5b）：policyHash 失配报文必须给恢复一致的偿还路径指引。
     assert.match(out(verify), /strength\s*set|恢复一致|重新?设[定置]/,
       `policyHash 失配报文必须给偿还路径指引（点名如何恢复一致，如 strength set --profile <档名>）\n实际输出：${out(verify)}`);
   });
 });
 
-// ---------------- P4 二轮评审 error 级缺陷红测（REQ-053/054/055 目标语义；写测时点全部必须红） ----------------
+// ---------------- P4 二轮评审 error 级缺陷回归锁（REQ-053/054/055 目标语义；红测先行随修复转绿） ----------------
 //
-// 红因核对表（逐条在断言处注释；红因必须是缺陷本身，不是夹具或语法错误）：
+// 缺陷锚点（P4 二轮评审发现，修复语义逐条在用例处注释）：
 //   E1 交集对账多塞键绕过（REQ-053/verify.mjs）：镜像字段级对账取共享键交集（`if (!(key in tail))
 //      continue`），往真实镜像注入账本尾没有的键（validUntil=未来）+ 重修 contentHash，对账跳过
 //      该键，且 stale 循环的 validUntil 分支（窗口未过期）continue 跳过指纹比对 → 指纹已移动的
@@ -741,7 +738,7 @@ describe('REQ-055 P4 红测：committed 落盘证据 / 根 .gitignore / policyHa
 //      2000) 取的是 [-4000,-2000) 中段而非真实末尾——decision-relevant 的尾部判定行被丢弃。
 //      目标：committed 模式 noisy 检查的回执 evidenceTail 必须包含真实输出末尾。
 
-describe('REQ-053 P4 二轮红测：交集对账多塞键绕过', RT, () => {
+describe('REQ-053 P4 二轮缺陷回归：交集对账多塞键绕过', RT, () => {
   test('镜像注入账本尾没有的键（validUntil=未来）+ 重修哈希 → 把 STALE 洗成 exit 0 必须判 TAMPERED exit 2', (t) => {
     if (!needGit(t)) return;
     const dir = gateFixture(t, [PASS_CHECK]);
@@ -756,10 +753,8 @@ describe('REQ-053 P4 二轮红测：交集对账多塞键绕过', RT, () => {
       receipt.validUntil = new Date(Date.now() + 3600_000).toISOString();
     });
     const laundered = run(['receipt', 'verify'], { cwd: dir });
-    // 红因：交集对账跳过 validUntil（账本尾无此键），stale 循环 validUntil 分支（未过期）
-    // continue 跳过指纹比对 → exit 0，STALE 被洗白。
-    // 目标：镜像含账本条目不存在的键 = 凭空多键 → TAMPERED exit 2（少键才是 v1 兼容形态）；
-    // validUntil 豁免只在其与账本条目一致时生效。
+    // 锁定（E1）：镜像含账本条目不存在的键 = 凭空多键 → TAMPERED exit 2（少键才是 v1 兼容
+    // 形态）；validUntil 豁免只在其与账本条目一致时生效——多塞键不得把 STALE 洗成 exit 0。
     assert.equal(laundered.code, 2,
       `注入多塞键洗钱 STALE 必须判篡改 exit 2，实得 ${laundered.code}\n${out(laundered)}`);
     assert.match(out(laundered), /TAMPERED/, `多塞键镜像必须报 TAMPERED\n实际输出：${out(laundered)}`);
@@ -767,7 +762,7 @@ describe('REQ-053 P4 二轮红测：交集对账多塞键绕过', RT, () => {
   });
 });
 
-describe('REQ-054 P4 二轮红测：归档段零鉴权', RT, () => {
+describe('REQ-054 P4 二轮缺陷回归：归档段零鉴权', RT, () => {
   test('就地剔除归档内 deferred / 投放伪造归档（假偿还 PASS）→ verify exit 2 且 risk 债务判定不被洗白', (t) => {
     if (!needGit(t)) return;
     // 与首轮 D2 同夹具：cap=2 造债 → 翻转 FAIL 触发轮转，未偿还 deferred 被归档出当前段。
@@ -793,8 +788,8 @@ describe('REQ-054 P4 二轮红测：归档段零鉴权', RT, () => {
       const kept = read(dir, archive).split('\n').filter(Boolean)
         .filter((line) => JSON.parse(line).kind !== 'deferred');
       write(dir, archive, `${kept.join('\n')}\n`);
-      // 红因：verify 只校验当前段链 + anchor 存在性，归档段内容从不重放校验 → exit 0 报链完好。
-      // 目标：归档段必须与 anchor 记录（count/链尾）对账——被改 → exit 2 判篡改/断链并点名归档段。
+      // 锁定（E2 形态①）：归档段必须与 anchor 记录（count/链尾）对账——被改 → exit 2
+      // 判篡改/断链并点名归档段（旧缺陷：归档段内容从不重放校验 → exit 0 报链完好）。
       const verify = run(['receipt', 'verify'], { cwd: dir });
       assert.equal(verify.code, 2,
         `归档段被就地编辑（剔除 deferred）必须 exit 2，实得 ${verify.code}\n${out(verify)}`);
@@ -821,10 +816,9 @@ describe('REQ-054 P4 二轮红测：归档段零鉴权', RT, () => {
       forged.chain = crypto.createHash('sha256').update(`GENESIS\0${forged.contentHash}`).digest('hex');
       // 文件名时间戳字典序排最后 → readLedgerHistory 把它拼在真实归档之后、当前段之前。
       write(dir, '.kimi-base/state/ledger-archive-9999999999999-ffffff.jsonl', `${JSON.stringify(forged)}\n`);
-      // 红因：伪造归档零鉴权入史 → 假 PASS 被 fastDebtOf 计为偿还，FAST_MODE_DEBT 静默消失；
-      // verify 的截断检测只数归档个数（有 anchor 即「完好」）→ exit 0。
-      // 目标：伪造归档出现 = 与 anchor 记录（count/链尾）对不上 → verify exit 2；
-      // 假偿还不得清债——risk 必须仍报 FAST_MODE_DEBT。
+      // 锁定（E2 形态②）：伪造归档出现 = 与 anchor 记录（count/链尾）对不上 → verify exit 2；
+      // 假偿还不得清债——risk 必须仍报 FAST_MODE_DEBT（旧缺陷：伪造归档零鉴权入史，
+      // 假 PASS 被计为偿还，截断检测只数归档个数 → exit 0）。
       const verify = run(['receipt', 'verify'], { cwd: dir });
       assert.equal(verify.code, 2,
         `投放伪造归档必须 exit 2，实得 ${verify.code}\n${out(verify)}`);
@@ -837,7 +831,7 @@ describe('REQ-054 P4 二轮红测：归档段零鉴权', RT, () => {
   });
 });
 
-describe('REQ-055 P4 二轮红测：evidenceTail 截断错位', RT, () => {
+describe('REQ-055 P4 二轮缺陷回归：evidenceTail 截断错位', RT, () => {
   test('committed 模式 noisy 检查（输出尾部带判定标记行）的回执 evidenceTail 必须包含真实输出末尾', (t) => {
     if (!needGit(t)) return;
     // 金丝雀纪律：标记串拼接构造，防本仓 fitness/secret 扫描误伤字面形态。
@@ -854,18 +848,17 @@ describe('REQ-055 P4 二轮红测：evidenceTail 截断错位', RT, () => {
     assert.ok(receipt.evidencePath, '前置：>4000 字节输出必须落盘外部 .log（evidenceTail 是其内联替代）');
     assert.ok(typeof receipt.evidenceTail === 'string' && receipt.evidenceTail.length > 0,
       `回执必须携带内联证据尾部 evidenceTail，实得 ${JSON.stringify(receipt.evidenceTail)}`);
-    // 红因：gate.mjs evidenceTail = boundedText(rawEvidence.slice(-4000), 2000)——slice(-4000)
-    // 取末 4000 字符后 boundedText 又从头截 2000，落进回执的是 [-4000,-2000) 中段，
-    // 真实末尾（decision-relevant 判定行）被丢弃。
-    // 目标：evidenceTail 必须是真实末尾的有界尾部（标记行必须在内）。
+    // 锁定（E3）：evidenceTail 必须是真实末尾的有界尾部（判定行必须在内）——
+    // 旧缺陷：boundedText(rawEvidence.slice(-4000), 2000) 从头截 2000，
+    // 落进回执的是 [-4000,-2000) 中段，真实末尾被丢弃。
     assert.ok(receipt.evidenceTail.includes(marker),
       `evidenceTail 必须包含真实输出末尾的标记 ${marker}（尾部才是 decision-relevant 证据）\n实际 evidenceTail 末尾：…${receipt.evidenceTail.slice(-120)}`);
   });
 });
 
-// ---------------- P4 三轮评审 error 级缺陷红测（REQ-054 目标语义；写测时点全部必须红） ----------------
+// ---------------- P4 三轮评审 error 级缺陷回归锁（REQ-054 目标语义；红测先行随修复转绿） ----------------
 //
-// 红因核对表（逐条在断言处注释；红因必须是缺陷本身，不是夹具或语法错误）：
+// 缺陷锚点（P4 三轮评审发现，修复语义逐条在用例处注释）：
 //   F1 镜像对账失锚（verify.mjs）：镜像对账的锚点（latestByCheck/historyByCheck）只来自当前段
 //      （readLedgerEntries），某 check 的账本条目全部轮转进归档段后对账整体旁路
 //      （`if (!tail || …) continue`）——① 镜像回滚到归档里的旧回执、② 凭空伪造 status/summary
@@ -876,7 +869,7 @@ describe('REQ-055 P4 二轮红测：evidenceTail 截断错位', RT, () => {
 //      目标：引擎必须能检测尾部截断（建议：追加条目后原子写 head 锚文件，verify 对账 head 锚
 //      与链尾，不一致 → exit 2 判篡改）；截断不得清债——risk 仍报 FAST_MODE_DEBT。
 
-describe('REQ-054 P4 三轮红测：镜像对账失锚（轮转后）', RT, () => {
+describe('REQ-054 P4 三轮缺陷回归：镜像对账失锚（轮转后）', RT, () => {
   test('check 的账本条目全部轮转进归档后：镜像回滚归档旧回执 / 凭空伪造镜像 都必须 exit 2', (t) => {
     if (!needGit(t)) return;
     // cap=1：每次追加第 2 条数据条目即轮转。两次 gate（4 条 verification）后当前段只剩 anchor，
@@ -904,8 +897,8 @@ describe('REQ-054 P4 三轮红测：镜像对账失锚（轮转后）', RT, () =
     {
       const { dir, oldMirror } = rotatedMirrors();
       write(dir, '.kimi-base/state/receipts/static-ok.json', oldMirror);
-      // 红因：latestByCheck/historyByCheck 只扫当前段（只剩 anchor）→ tail 缺失整体 continue，
-      // 回滚无人对账 → exit 0。目标：全史对账——旧回执哈希在史而非尾 → DRIFT/TAMPERED exit 2。
+      // 锁定（F1 形态①）：镜像对账必须走全史——旧回执哈希在史而非全史尾 → DRIFT/TAMPERED
+      // exit 2（旧缺陷：对账锚点只扫当前段，全部归档后 tail 缺失整体 continue，回滚无人对账）。
       const rolled = run(['receipt', 'verify'], { cwd: dir });
       assert.equal(rolled.code, 2,
         `镜像回滚到归档旧回执必须 exit 2（轮转不得削弱镜像校验），实得 ${rolled.code}\n${out(rolled)}`);
@@ -920,8 +913,7 @@ describe('REQ-054 P4 三轮红测：镜像对账失锚（轮转后）', RT, () =
         receipt.status = 'FAIL';
         receipt.summary = 'FABRICATED after rotation';
       });
-      // 红因同上：失锚后字段级对账不执行 → exit 0。目标：全史对账——字段与全史尾不一致
-      // → TAMPERED exit 2。
+      // 锁定（F1 形态②）：同上——失锚后字段级对账仍须执行，字段与全史尾不一致 → TAMPERED exit 2。
       const forged = run(['receipt', 'verify'], { cwd: dir });
       assert.equal(forged.code, 2,
         `失锚后凭空伪造镜像必须判篡改 exit 2，实得 ${forged.code}\n${out(forged)}`);
@@ -931,7 +923,7 @@ describe('REQ-054 P4 三轮红测：镜像对账失锚（轮转后）', RT, () =
   });
 });
 
-describe('REQ-054 P4 三轮红测：当前段尾部截断失声', RT, () => {
+describe('REQ-054 P4 三轮缺陷回归：当前段尾部截断失声', RT, () => {
   test('deferred 尾行被删（链仍是合法前缀）→ verify 必须 exit 2 判篡改且 risk 仍报 FAST_MODE_DEBT', (t) => {
     if (!needGit(t)) return;
     const dir = gateFixture(t, [DEFERRABLE_CHECK]);
@@ -948,30 +940,30 @@ describe('REQ-054 P4 三轮红测：当前段尾部截断失声', RT, () => {
       '前置：截断前 risk 必须已报 FAST_MODE_DEBT');
     // 攻击：删尾行（同 sed -i '$ d'）——剩余链仍是合法前缀，现行链校验无从发现。
     write(dir, LEDGER, `${read(dir, LEDGER).split('\n').filter(Boolean).slice(0, -1).join('\n')}\n`);
-    // 红因：verify 报「链：完好」exit 0（前缀链合法、deferred 无镜像、无长度锚）。
-    // 目标：引擎必须能检测尾部截断（建议 head 锚文件对账链尾+条目数）→ exit 2 判篡改。
+    // 锁定（F2）：引擎必须能检测尾部截断（head 锚文件对账链尾+条目数）→ exit 2 判篡改
+    // （旧缺陷：前缀链合法、deferred 无镜像、无长度锚 → verify 报「链：完好」exit 0）。
     const verify = run(['receipt', 'verify'], { cwd: dir });
     assert.equal(verify.code, 2,
       `尾部截断（deferred 尾行被删）必须 exit 2，实得 ${verify.code}\n${out(verify)}`);
     assert.match(out(verify), /TAMPERED|BROKEN/, `尾部截断必须报 TAMPERED/BROKEN\n实际输出：${out(verify)}`);
     assert.match(out(verify), /截断|锚|head|链尾/i, `报文必须点名尾部截断/锚对账\n实际输出：${out(verify)}`);
-    // 目标：截断不得清债——risk 必须仍报 FAST_MODE_DEBT（失声 = 删账即免债的未声明路径）。
+    // 锁定（F2 债务面）：截断不得清债——risk 必须仍报 FAST_MODE_DEBT（失声 = 删账即免债的未声明路径）。
     const risk = run(['risk', 'scan'], { cwd: dir });
     assert.match(out(risk), /FAST_MODE_DEBT/,
       `尾部截断不得清债：risk 必须仍报 FAST_MODE_DEBT\n实际输出：${out(risk)}`);
   });
 });
 
-// ---------------- P4 四轮评审 error 级缺陷红测（REQ-054 目标语义；写测时点必须红） ----------------
+// ---------------- P4 四轮评审 error 级缺陷回归锁（REQ-054 目标语义；红测先行随修复转绿） ----------------
 //
-// 红因核对表（逐条在断言处注释；红因必须是缺陷本身，不是夹具或语法错误）：
+// 缺陷锚点（P4 四轮评审发现，修复语义逐条在用例处注释）：
 //   G1 head 锚缺失无新旧账本判别器（ledger.mjs reconcileLedgerHead）：「无锚=降级 note」对任何
 //      账本生效——rm ledger-head.json + 尾部截断 deferred 即绕过整个 F2 保护（verify exit 0
 //      仅 note、risk 无声）。目标（定案）：账本内含 v2 绑定键（policyHash/engineHash/catalogHash）
 //      或 kind=deferred 条目的必出自带锚引擎——此类账本无锚即 TAMPERED exit 2；只有纯 v1 旧账本
 //      （全无 v2 键且无 deferred）缺锚才维持降级 note。
 
-describe('REQ-054 P4 四轮红测：head 锚缺失的新旧账本判别', RT, () => {
+describe('REQ-054 P4 四轮缺陷回归：head 锚缺失的新旧账本判别', RT, () => {
   test('含 deferred/v2 键的账本 rm 锚 + 删尾行 → verify exit 2 且 risk 仍报债；纯 v1 账本无锚 → 降级 note 不判篡改', (t) => {
     if (!needGit(t)) return;
     const HEAD = '.kimi-base/state/ledger-head.json';
@@ -991,10 +983,9 @@ describe('REQ-054 P4 四轮红测：head 锚缺失的新旧账本判别', RT, ()
       // 攻击：连锚带尾一起抹——剩余链仍是合法前缀，锚缺失按「旧账本」降级放行。
       fs.rmSync(path.join(dir, HEAD));
       write(dir, LEDGER, `${read(dir, LEDGER).split('\n').filter(Boolean).slice(0, -1).join('\n')}\n`);
-      // 红因：reconcileLedgerHead 的「无锚=note」无新旧判别——含 deferred/v2 键的账本不可能
-      // 出自无锚旧引擎，缺锚即锚被删除（灭迹），却 exit 0 仅 note；risk 的锚快照兜底也因
-      // head=null 失效，FAST_MODE_DEBT 失声。
-      // 目标：此类账本无锚即 TAMPERED exit 2；截断不得清债——risk 仍报 FAST_MODE_DEBT。
+      // 锁定（G1）：含 deferred/v2 键的账本不可能出自无锚旧引擎——缺锚即锚被删除（灭迹），
+      // 必须 TAMPERED exit 2；截断不得清债——risk 仍报 FAST_MODE_DEBT（旧缺陷：「无锚=note」
+      // 无新旧判别，灭迹 exit 0 仅 note，锚快照兜底因 head=null 失效）。
       const verify = run(['receipt', 'verify'], { cwd: dir });
       assert.equal(verify.code, 2,
         `带 v2/deferred 账本缺 head 锚必须判篡改 exit 2（锚被删 = 灭迹），实得 ${verify.code}\n${out(verify)}`);
@@ -1005,7 +996,7 @@ describe('REQ-054 P4 四轮红测：head 锚缺失的新旧账本判别', RT, ()
         `连锚带尾灭迹不得清债：risk 必须仍报 FAST_MODE_DEBT\n实际输出：${out(risk)}`);
     }
 
-    // 对照（回归锁定，现实现上即绿）：纯 v1 旧账本——全无 v2 绑定键、无 deferred——缺锚
+    // 对照（回归锁定）：纯 v1 旧账本——全无 v2 绑定键、无 deferred——缺锚
     // 维持降级 note（不谎报篡改），exit 0。
     {
       const dir = gateFixture(t, [PASS_CHECK]); // 只取 git 仓骨架，不跑 gate（账本手工构造）

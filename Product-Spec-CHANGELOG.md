@@ -1,5 +1,17 @@
 # Product Spec 变更日志
 
+## v3.1.3（2026-09-08）P5 激活：REQ-057 评审强化；P11 批次二收尾：REQ-072/073/074
+
+### 为什么改
+
+P5 完成：评审独立性接线（REQ-057）落地——task 作者入账本（--author，缺省 main-agent）、lens 执行者 --reviewer 入会话、verdict 作者自审拒出 ACCEPT 并诚实标注 authorshipEnforced、review pack 注入 fitness/arch check/budget 现存发现、strength.json 存在时评审轴（reviewLenses/reviewRounds）驱动召集，按 REQ-067 机制摘 planned 标记。REQ-072/073/074 的真实情境前后对比检验完成（docs/evals/p11-ab-test.md），兑现 v3.1.2「检验完成前不摘」的条件，同批摘 planned 标记。
+
+### 变更
+
+- REQ-057（评审独立性接线）摘 planned(P5) 标记，验收 tests/review.test.mjs REQ-057 段 10 用例全绿（红测先行，实现未动任何测试文件）。
+- REQ-072/073/074 摘 planned(P11) 标记，验收 tests/spec.test.mjs「资产锚点：内容面」新增 3 用例全绿 + docs/evals/p11-ab-test.md 指标对照表。
+- 版本号 v3.1.2 → v3.1.3。
+
 ## v3.1.2（2026-09-08）P11 批次二激活：REQ-070/071/075
 
 ### 为什么改

@@ -4,7 +4,7 @@
  * 的契约测试 + 本仓资产锚点测试。
  * 追溯：REQ-033（spec/trace）REQ-034（rules-audit）REQ-035（skills/agents-lint）REQ-067（planned 生命周期标记）REQ-069（认知标注四态）REQ-075（skills-lint 对话型工艺检查）。
  * 内容面资产锚点：REQ-070（派单第七字段 Business Context）REQ-071（交互深度四档）REQ-075（skill 工艺与去重）
- * ——三条均为 planned，字面引用触发 trace 的 PLANNED_HAS_TESTS 提示，属预期工作流（实现落地同 commit 摘除标记）。
+ * ——三条已随 P6/P11 落地转正（planned 标记已摘除），字面引用为正式追溯。
  *
  * 运行：node --test tests/spec.test.mjs
  *
@@ -388,9 +388,9 @@ describe('skills-lint 对话型工艺', RT, () => {
     assert.doesNotMatch(r.stdout, /SKILL_NO_EXAMPLES|SKILL_NO_ANTIPATTERNS/, `本仓对话型 skill 必须全部具备示例与反例节：\n${out(r)}`);
   });
 
-  test('围栏内假示例节不放行缺节 skill：「对话示例」仅在代码围栏内 → 仍报 SKILL_NO_EXAMPLES（P6 修复轮红测）', (t) => {
-    // 红因（写测时点）：skillsLint 的标题收集不豁免代码围栏（scan.mjs 直接 split('\n') 全量匹配），
-    // 围栏内模板片段的 `## 对话示例` 被当成真实章节，缺节 skill 被放行（SKILL_NO_EXAMPLES 缺失）。
+  test('围栏内假示例节不放行缺节 skill：「对话示例」仅在代码围栏内 → 仍报 SKILL_NO_EXAMPLES（P6 修复轮回归锁）', (t) => {
+    // 锁定（P6 修复轮缺陷，红测先行随修复转绿）：skillsLint 的标题收集必须豁免代码围栏——
+    // 围栏内模板片段的 `## 对话示例` 不得被当成真实章节放行缺节 skill。
     const dir = mkdtemp(t);
     writeHarness(dir);
     write(dir, '.kimi-code/skills/product-spec-builder/SKILL.md', skillBody('product-spec-builder',
@@ -933,7 +933,7 @@ describe('认知标注四态·确认途径口径', RT, () => {
 });
 
 // ---------------- 内容面资产锚点（REQ-070 / REQ-071 / REQ-075） ----------------
-// 三条均为 planned：断言全部指向仓内真实交付内容（本仓即被测对象），
+// 三条已落地转正：断言全部指向仓内真实交付内容（本仓即被测对象），
 // 为内容面交付提供可机器核查的验收证据。红 = 交付内容缺斤短两，如实报告。
 
 describe('资产锚点：内容面（REQ-070/071/075）', () => {
@@ -1027,6 +1027,51 @@ describe('资产锚点：内容面（REQ-070/071/075）', () => {
       const text = readRepo(rel);
       assert.ok(text.includes('.kimi-base/rules/intent-routing.md'), `${rel} 必须引用路由表单源`);
       assert.ok(!/^\|\s*意图\s*\|\s*Skill\s*\|/m.test(text), `${rel} 复制了路由表本体，违反单源`);
+    }
+  });
+
+  // REQ-072 psb 探索方法层：四线 + 答案解析器 + 路由表 + 情境复述收敛 + 纠正三段式；A/B 对照报告锚点
+  test('REQ-072：psb 含四线/答案解析器/路由表/情境复述收敛/纠正三段式节，且 p11-ab-test.md 含指标对照表', () => {
+    const text = readRepo('.kimi-code/skills/product-spec-builder/SKILL.md');
+    for (const line of ['as-is', '受益受损', '规则与例外', '决策历史']) {
+      assert.ok(text.includes(line), `psb 缺四线关键词「${line}」`);
+    }
+    for (const section of ['答案解析器', '路由表', '情境复述收敛', '纠正三段式']) {
+      assert.match(text, new RegExp(`^##+ .*${section}`, 'm'), `psb 缺「${section}」节标题`);
+    }
+    const report = readRepo('docs/evals/p11-ab-test.md');
+    assert.match(report, /指标对照表/, 'p11-ab-test.md 缺指标对照表');
+    assert.match(report, /隐性事实召回/, 'p11-ab-test.md 指标对照表缺「隐性事实召回」行');
+  });
+
+  // REQ-073 决策依据链与纠正落痕：progress 模板三字段 + supersedes；两个记录侧 skill 各含纠正三段式节
+  test('REQ-073：progress.md 模板 Decisions 含理由/被否方案/适用范围与 supersedes；progress-recorder/feedback-writer 含纠正三段式节', () => {
+    const tpl = readRepo('.kimi-base/templates/progress.md');
+    const decisions = tpl.match(/## Decisions[^\n]*\n[\s\S]*?(?=\n## )/);
+    assert.ok(decisions, 'templates/progress.md 缺 Decisions 骨架节');
+    for (const field of ['理由', '被否方案', '适用范围', 'supersedes']) {
+      assert.ok(decisions[0].includes(field), `Decisions 骨架缺「${field}」`);
+    }
+    for (const skill of ['progress-recorder', 'feedback-writer']) {
+      const text = readRepo(`.kimi-code/skills/${skill}/SKILL.md`);
+      assert.match(text, /^## .*纠正三段式/m, `${skill} 缺「纠正三段式」节标题`);
+    }
+  });
+
+  // REQ-074 设计侧业务推导：arch-designer 业务推导线五视角 + 真实任务走查；dfx-designer 定标方法
+  test('REQ-074：arch-designer 含业务推导线（五视角）与真实任务走查节；dfx-designer 含定标方法节', () => {
+    const arch = readRepo('.kimi-code/skills/arch-designer/SKILL.md');
+    const wire = arch.match(/^## .*业务推导线[^\n]*\n([\s\S]*?)(?=\n## )/m);
+    assert.ok(wire, 'arch-designer 缺「业务推导线」节');
+    for (const view of ['业务职责', '数据归属', '一致性', '故障后果', '团队能力']) {
+      assert.ok(wire[1].includes(view), `业务推导线缺视角「${view}」`);
+    }
+    assert.match(arch, /^## .*真实任务走查/m, 'arch-designer 缺「真实任务走查」节');
+    const dfx = readRepo('.kimi-code/skills/dfx-designer/SKILL.md');
+    const calibrate = dfx.match(/^## .*定标方法[^\n]*\n([\s\S]*?)(?=\n## )/m);
+    assert.ok(calibrate, 'dfx-designer 缺「定标方法」节');
+    for (const kw of ['业务损失', '可接受边界']) {
+      assert.ok(calibrate[1].includes(kw), `定标方法缺关键词「${kw}」`);
     }
   });
 });

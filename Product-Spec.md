@@ -1,6 +1,6 @@
 # kimi-base Product Spec
 
-版本：v3.1.2 · 状态：v3.0 重构进行中（P0-P4、P6 已交付；P5、P7-P10 工程面与 P11 软层并行推进） · 变更史见 `Product-Spec-CHANGELOG.md`
+版本：v3.1.3 · 状态：v3.0 重构进行中（P0-P6 已交付；P7-P10 工程面与 P11 软层并行推进） · 变更史见 `Product-Spec-CHANGELOG.md`
 
 ## 1. 定位
 
@@ -152,7 +152,6 @@
 - REQ-056 CLI 契约注册表：当执行任意 verb 时，dispatch、help 与 flag 校验必须从 `lib/cli-contracts.mjs` 单源派生；未知 flag、重复 flag、空值 flag 必须 exit 1 并列出该 verb 合法 flag 集；selftest 必须双向钉死（每个路由有契约、每个契约有路由）；40 个既有 verb 名称与语义必须保持兼容。
   验收：cli 契约测试组（全 verb flag 表锁定/未知 flag 拒/selftest 双向断言）全绿。
 - REQ-057 评审独立性接线：当评审 lens 报告时，引擎必须记录执行者身份并入 authorship 账本；lens 执行者属于该 diff 作者集时 verdict 必须拒出 ACCEPT；无身份数据时必须诚实输出 authorshipEnforced:false；review-pack 必须注入 fitness/arch-check/budget 当前发现供 lens 引用。
-  状态：planned(P5)
   验收：review 测试组（作者自审拒 ACCEPT/无数据诚实标注/静态发现在证据包内）全绿。
 - REQ-058 feedback 引擎化：当执行 `feedback record/scan/propose` 时，引擎必须机器维护 occurrences 与 FEEDBACK-INDEX（同主题去重）；scan 必须检出毕业候选（单条 occurrences≥3、同失败模式跨文件 3+、无覆盖模式 5+）；propose 必须按"可执行 check > fitness 规则 > skill 步骤 > AGENTS.md 散文"优先级给结构化提议且永不自动改规则；被拒提议必须记 skipped 不再重复提议。
   验收：feedback 测试组（计数去重/三档聚类候选/优先级排序/skipped 不重复/零自动落地）全绿。
@@ -194,13 +193,10 @@
 - REQ-071 交互深度四档：工作流必须定义直推/确认/探索/委托四档，判据=认知不确定性×做错代价；澄清记录必须持久化于 Spec"澄清记录"节，问过的不得再问；签字闸对直推档豁免、对探索档强制。
   验收：workflow 细则评审 + 四档分支的行为用例（直推不拦/委托不问/重问被拦）全绿。
 - REQ-072 psb 方法层：product-spec-builder 必须具备向人学业务四线（as-is 真实故事/受益受损者/规则与例外/决策历史）、答案解析器（弱化词→标推断要例子、"都要"→逼取舍、矛盾→并排摆出）、答案→下一步路由表、情境复述收敛（用用户的案例讲"那次会怎么走"）；收敛条件必须是未知清零+复述通过，维度清单只作覆盖检查。
-  状态：planned(P11)
   验收：skill 契约 lint + 真实情境前后对比检验（隐性需求召回/推断冒充事实次数）。
 - REQ-073 记忆依据链：progress.md Decisions 条目必须带理由+被否方案+适用范围三字段；推翻旧决策必须建 supersede 显式链（引用被推翻条目）；用户纠正必须产出"旧理解→新理解→影响面"三段式变更记录，不得止于道歉或单条 feedback。
-  状态：planned(P11)
   验收：progress 记录格式 lint + 纠正三段式行为用例全绿。
 - REQ-074 阶段专业化：arch-designer 必须从业务职责/数据归属/一致性要求/故障后果/团队能力五线推导技术方案并解释取舍；dfx-designer 的目标值必须从"业务损失与可接受边界"追问得来；界面相关工作必须至少做真实任务走查（用用户真实任务描述操作路径）。
-  状态：planned(P11)
   验收：三 skill 的字段级完备性检查（lint）+ 情境检验。
 - REQ-075 skill 工艺与去重：对话型 skill 必须各带 ≥2 个多轮对话示例与反例清单；执行型 skill 必须带反合理化清单（偷懒话术→应对）；回执信封/交接声明/意图路由表/联网优先等重复块必须下沉为单源定义各处引用。
   验收：skills-lint 扩展检查（示例/反例存在性）全绿 + 重复块消除前后 diff 审计。

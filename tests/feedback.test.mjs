@@ -1,9 +1,9 @@
 /**
  * tests/feedback.test.mjs
  * REQ-058 feedback 引擎化（feedback record/list/scan/propose 动词族）的行为测试——
- * 红测先行于实现（v3.0 P6，Product-Spec.md 第 5 节「v3.0 强度可计算的治理」REQ-058，
- * 设计依据 docs/adr/0010-feedback-engine.md）。本文件对 REQ-058 的字面引用即正当追溯
- * （同 strength.test.mjs 先例：PLANNED_HAS_TESTS 警告属预期工作流）。
+ * 红测先行于实现，已随 v3.0 P6 落地转绿（Product-Spec.md 第 5 节「v3.0 强度可计算的治理」
+ * REQ-058，设计依据 docs/adr/0010-feedback-engine.md）。本文件对 REQ-058 的字面引用即
+ * 正当追溯。
  *
  * 运行：node --test tests/feedback.test.mjs
  *
@@ -13,15 +13,14 @@
  * 纯文件操作（契约未要求 git），夹具一律最小 harness.json 项目，不依赖 git；安装载荷
  * 用例参照 receipt-v2「local 模式」先例：复制源仓载荷到临时 src 再 install 进目标。
  *
- * 红绿预期（写测时点，特性未实现）：全部用例必须红；红因必须是行为缺失——
- * 未知动词 feedback（cli.mjs default 分支 usageError「未知动词：feedback」exit 1）、
- * .kimi-base/feedback/ 不在安装复制面（MANAGED_ENTRIES 无此项，源仓亦无该目录），
- * 不是夹具或语法错误。防假绿专项：exit 1 类用例（缺参数/非法 type/未知 flag）当前会被
- * 「未知动词 exit 1」凑绿——每个此类用例必须同时断言点名违规项且不报「未知动词」。
+ * 红测先行记录：写测时点特性未实现，全部用例红（红因=行为缺失：未知动词 feedback /
+ * .kimi-base/feedback/ 不在安装复制面）；落地后全绿，本文件现为 REQ-058 契约回归锁。
+ * 防假绿纪律保留：exit 1 类用例（缺参数/非法 type/未知 flag）会被「未知动词 exit 1」
+ * 凑绿——每个此类用例必须同时断言点名违规项且不报「未知动词」。
  *
- * 既有套件影响（预期暂红，实现方同 commit 同步，不属于本文件）：feedback 入 CONTRACTS
- * 后 tests/cli-contracts.test.mjs 的 39+help 现状表与 selftest 的动词集钉死会红——
- * 扩表属实现面（strength 的 STRENGTH_CONTRACT 先例：扩表后并入 CONTRACTS）。
+ * 既有套件影响（历史记录，已闭环）：feedback 入 CONTRACTS 时 tests/cli-contracts.test.mjs
+ * 的现状表与 selftest 动词集钉死由实现方同 commit 扩表同步（strength 的 STRENGTH_CONTRACT
+ * 先例：扩表后并入 CONTRACTS）。
  *
  * 契约歧义点的选定解释（逐条注释在用例处）：
  *   1) 五类 type 的机器 token：契约只说「五类之一」（feedback-writer 五类信号），选定
@@ -127,7 +126,7 @@ const TYPES = ['user-correction', 'uncovered-scenario', 'repeated-operation', 'q
 
 /**
  * 按契约 2 的 frontmatter 形状手写 feedback 条目（scan/propose 夹具用——与 record 解耦，
- * 保证 scan/propose 用例的红因是 scan/propose 行为缺失而非 record 前置失败）。
+ * 保证 scan/propose 用例钉的是 scan/propose 本身而非 record 前置）。
  */
 function writeFeedbackEntry(dir, topic, fields = {}) {
   const fm = {
@@ -191,7 +190,7 @@ function assertTreeUnchanged(before, after, label) {
 
 describe('feedback 动词注册与契约校验（契约 1）', RT, () => {
   test('feedback --help 列出 record/list/scan/propose 四子命令', () => {
-    // 红因=行为缺失：HELP_VERBS 无 feedback 条目，--help 落回全局帮助（exit 0 但全文无 feedback）。
+    // 锁定：HELP_VERBS 必须有 feedback 条目并列出四子命令。
     const r = run(['feedback', '--help']);
     assert.equal(r.code, 0, out(r));
     assert.ok(out(r).includes('feedback'), `help 必须含 feedback 动词条目\n实际输出：${out(r)}`);
@@ -201,8 +200,8 @@ describe('feedback 动词注册与契约校验（契约 1）', RT, () => {
   });
 
   test('feedback 子命令的未知 flag → exit 1 且点名违规 flag（契约校验不得旁路，strength D4 先例）', (t) => {
-    // 红因=行为缺失：feedback 未注册 → contractOf 查表落空 → default 报「未知动词」exit 1，
-    // --bogus-flag 永远不被点名。只断 exit 1 会被「未知动词 exit 1」假绿。
+    // 防假绿：feedback 若未注册，contractOf 查表落空会报「未知动词」exit 1 凑绿——
+    // 必须同时断言点名违规 flag 且不报「未知动词」。
     const dir = feedbackFixture(t);
     const r = run(['feedback', 'list', '--bogus-flag'], { cwd: dir });
     assert.equal(r.code, 1, `未知 flag 应 exit 1，实得 ${r.code}\n${out(r)}`);
@@ -215,7 +214,7 @@ describe('feedback 动词注册与契约校验（契约 1）', RT, () => {
 
 describe('feedback record（契约 2/3/8）', RT, () => {
   test('新建条目：落盘 .kimi-base/feedback/<topic>.md（七键 frontmatter）+ 机器维护 INDEX + 返回条目路径', (t) => {
-    // 红因=行为缺失：未知动词 feedback → exit 1，无文件落盘。
+    // 锁定：record 落盘条目 + 机器维护 INDEX + 返回条目路径。
     const dir = feedbackFixture(t);
     const r = run(['feedback', 'record', '--topic', 'flaky-test', '--type', 'quality-issue', '--description', '测试间歇失败'], { cwd: dir });
     assert.equal(r.code, 0, `record 应 exit 0，实得 ${r.code}\n${out(r)}`);
@@ -236,7 +235,6 @@ describe('feedback record（契约 2/3/8）', RT, () => {
   });
 
   test('同主题去重：occurrences+1、updated 刷新、INDEX 行同步、不产生第二个文件', (t) => {
-    // 红因=行为缺失：未知动词 feedback。
     const dir = feedbackFixture(t);
     const first = run(['feedback', 'record', '--topic', 'flaky-test', '--type', 'quality-issue', '--description', '测试间歇失败'], { cwd: dir });
     assert.equal(first.code, 0, out(first));
@@ -254,7 +252,6 @@ describe('feedback record（契约 2/3/8）', RT, () => {
   });
 
   test('同主题判定归一化（契约 8）："Flaky Test" 与 "flaky-test" 是同主题（大小写/空白归一）', (t) => {
-    // 红因=行为缺失：未知动词 feedback。
     const dir = feedbackFixture(t);
     const first = run(['feedback', 'record', '--topic', 'Flaky Test', '--type', 'quality-issue', '--description', '测试间歇失败'], { cwd: dir });
     assert.equal(first.code, 0, out(first));
@@ -268,7 +265,7 @@ describe('feedback record（契约 2/3/8）', RT, () => {
   });
 
   test('缺参数 exit 1 且点名缺失 flag：--topic / --type / --description 各缺一', (t) => {
-    // 红因=行为缺失：未知动词 exit 1 会凑绿退出码——必须同时断言点名缺失 flag 且不报未知动词。
+    // 防假绿：未知动词 exit 1 会凑绿退出码——必须同时断言点名缺失 flag 且不报未知动词。
     const dir = feedbackFixture(t);
     const cases = [
       { args: ['feedback', 'record', '--type', 'quality-issue', '--description', 'x'], missing: 'topic' },
@@ -284,7 +281,7 @@ describe('feedback record（契约 2/3/8）', RT, () => {
   });
 
   test('非法 type（五类之外）→ exit 1 且点名非法值与合法集', (t) => {
-    // 红因=行为缺失：未知动词 exit 1 凑绿——必须点名非法值且不报未知动词。
+    // 防假绿：未知动词 exit 1 凑绿——必须点名非法值且不报未知动词。
     const dir = feedbackFixture(t);
     const r = run(['feedback', 'record', '--topic', 'flaky-test', '--type', 'bogus-type', '--description', 'x'], { cwd: dir });
     assert.equal(r.code, 1, `非法 type 应 exit 1，实得 ${r.code}\n${out(r)}`);
@@ -300,7 +297,6 @@ describe('feedback record（契约 2/3/8）', RT, () => {
 
 describe('feedback list（契约 4）', RT, () => {
   test('列全部条目：主题/类型/occurrences/graduated/skipped 五字段可见', (t) => {
-    // 红因=行为缺失：未知动词 feedback。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'flaky-test', { type: 'quality-issue', occurrences: 2 });
     writeFeedbackEntry(dir, 'batch-import', { type: 'repeated-operation', occurrences: 5, skipped: true });
@@ -318,7 +314,7 @@ describe('feedback list（契约 4）', RT, () => {
   });
 
   test('空 feedback 目录 → exit 0 且显式报告空（不是崩溃也不是假数据）', (t) => {
-    // 红因=行为缺失：未知动词 feedback（exit 1）。空集语义选定：exit 0 + 显式空报告。
+    // 空集语义选定：exit 0 + 显式空报告。
     const dir = feedbackFixture(t);
     const r = run(['feedback', 'list'], { cwd: dir });
     assert.equal(r.code, 0, `空目录 list 应 exit 0，实得 ${r.code}\n${out(r)}`);
@@ -330,7 +326,7 @@ describe('feedback list（契约 4）', RT, () => {
 
 describe('feedback scan（契约 5）', RT, () => {
   test('单条 occurrences≥3 且未毕业未跳过 → 毕业候选（含 topic 与 occurrences）', (t) => {
-    // 红因=行为缺失：未知动词 feedback。手写条目夹具与 record 解耦。
+    // 手写条目夹具与 record 解耦。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'flaky-test', { occurrences: 3 });
     const r = run(['feedback', 'scan'], { cwd: dir });
@@ -341,7 +337,6 @@ describe('feedback scan（契约 5）', RT, () => {
   });
 
   test('occurrences≥3 但 graduated:true / skipped:true → 不进候选（宁漏不滥）', (t) => {
-    // 红因=行为缺失：未知动词 feedback（exit 1）。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'already-graduated', { occurrences: 9, graduated: true });
     writeFeedbackEntry(dir, 'user-skipped', { occurrences: 9, skipped: true });
@@ -352,7 +347,7 @@ describe('feedback scan（契约 5）', RT, () => {
   });
 
   test('同失败模式跨文件聚类 3+（同 type、3 个不同 topic、各 occurrences 1）→ 聚类候选', (t) => {
-    // 红因=行为缺失：未知动词 feedback。歧义点 3：模式字段=type 相同即可的最小口径。
+    // 歧义点 3：模式字段=type 相同即可的最小口径。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'naming-drift-a', { type: 'quality-issue', occurrences: 1 });
     writeFeedbackEntry(dir, 'naming-drift-b', { type: 'quality-issue', occurrences: 1 });
@@ -364,7 +359,6 @@ describe('feedback scan（契约 5）', RT, () => {
   });
 
   test('同 type 仅 2 个 topic → 不产聚类候选（阈值边界）', (t) => {
-    // 红因=行为缺失：未知动词 feedback。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'naming-drift-a', { type: 'quality-issue', occurrences: 1 });
     writeFeedbackEntry(dir, 'naming-drift-b', { type: 'quality-issue', occurrences: 1 });
@@ -374,7 +368,7 @@ describe('feedback scan（契约 5）', RT, () => {
   });
 
   test('无覆盖模式 occurrences≥5（type=repeated-operation）→ 新 skill 候选', (t) => {
-    // 红因=行为缺失：未知动词 feedback。歧义点 4：repeated-operation=无 Skill 覆盖信号类。
+    // 歧义点 4：repeated-operation=无 Skill 覆盖信号类。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'batch-import', { type: 'repeated-operation', occurrences: 5 });
     const r = run(['feedback', 'scan'], { cwd: dir });
@@ -384,7 +378,7 @@ describe('feedback scan（契约 5）', RT, () => {
   });
 
   test('scan 只读：.kimi-base/feedback 与 harness.json 逐字节不变（不改任何规则/条目）', (t) => {
-    // 红因=行为缺失：未知动词 feedback（exit 1）。ADR-0010：scan 只读，不改任何规则。
+    // ADR-0010：scan 只读，不改任何规则。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'flaky-test', { occurrences: 3 });
     // state/ 是运行态（引擎自由写），排除在只读断言面外。
@@ -399,7 +393,6 @@ describe('feedback scan（契约 5）', RT, () => {
 
 describe('feedback propose（契约 6）', RT, () => {
   test('每个候选产结构化提议：点名目标层（check>fitness>skill>AGENTS.md）+ 证据指针（feedback id + occurrences）', (t) => {
-    // 红因=行为缺失：未知动词 feedback。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'flaky-test', { occurrences: 3 });
     const r = run(['feedback', 'propose'], { cwd: dir });
@@ -413,7 +406,7 @@ describe('feedback propose（契约 6）', RT, () => {
   });
 
   test('永不自动改规则：propose 后 AGENTS.md / .kimi-base/rules/ / .kimi-code/skills/ 逐字节不变', (t) => {
-    // 红因=行为缺失：未知动词 feedback（exit 1）。ADR-0010 机制红线：引擎永不自动改规则，
+    // ADR-0010 机制红线：引擎永不自动改规则，
     // 落地恒需人工确认——提议只输出不落盘规则文件。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'flaky-test', { occurrences: 3 });
@@ -429,7 +422,7 @@ describe('feedback propose（契约 6）', RT, () => {
   });
 
   test('propose --skip <topic>：记 skipped:true；之后 scan 不再报该主题、propose 不再提议它', (t) => {
-    // 红因=行为缺失：未知动词 feedback。ADR-0010：被拒提议记 skipped:true 不再重复提议。
+    // ADR-0010：被拒提议记 skipped:true 不再重复提议。
     const dir = feedbackFixture(t);
     writeFeedbackEntry(dir, 'flaky-test', { occurrences: 3 });
     writeFeedbackEntry(dir, 'other-topic', { occurrences: 4 });
@@ -455,8 +448,8 @@ describe('feedback propose（契约 6）', RT, () => {
 describe('安装载荷（契约 7）', RT, () => {
   /**
    * 参照 receipt-v2「local 模式」先例：复制源仓载荷到临时 src，从 src 的引擎 install 进目标。
-   * .kimi-base/feedback 条件复制：源仓尚无该目录时跳过（install 照常成功），
-   * 红因落在目标侧断言——不造夹具错误冒充行为红。
+   * .kimi-base/feedback 条件复制：源仓无该目录时跳过（install 照常成功），
+   * 锁定落在目标侧断言——不造夹具错误冒充行为失败。
    */
   function installFixture(t) {
     const src = mkdtemp(t, 'kimi-base-src-');
@@ -477,7 +470,7 @@ describe('安装载荷（契约 7）', RT, () => {
   }
 
   test('install 后 .kimi-base/feedback/ 存在：FEEDBACK-INDEX.md 模板 + 至少一条示例条目', (t) => {
-    // 红因=行为缺失：MANAGED_ENTRIES 无 .kimi-base/feedback（源仓亦无该目录）→ 目标侧缺目录。
+    // 锁定：安装面必须携带 .kimi-base/feedback（INDEX 模板 + 示例条目）。
     const { dir } = installFixture(t);
     assert.ok(exists(dir, '.kimi-base/feedback'), '安装面必须含 .kimi-base/feedback/ 目录');
     assert.ok(exists(dir, '.kimi-base/feedback/FEEDBACK-INDEX.md'), '安装面必须含 FEEDBACK-INDEX.md 模板');
@@ -487,7 +480,6 @@ describe('安装载荷（契约 7）', RT, () => {
   });
 
   test('install 后 feedback list 直接可用（exit 0 且列出示例条目）', (t) => {
-    // 红因=行为缺失：未知动词 feedback。
     const { dir, srcRuntime } = installFixture(t);
     const r = run(['feedback', 'list'], { cwd: dir, runtime: srcRuntime });
     assert.equal(r.code, 0, `新装项目的 feedback list 应 exit 0，实得 ${r.code}\n${out(r)}`);
@@ -495,8 +487,8 @@ describe('安装载荷（契约 7）', RT, () => {
   });
 });
 
-// ---------------- P6 修复轮红测（评审 verdict=FIX_REQUIRED 驱动，correctness lens 实证） ----------------
-// 红因预期（写测时点，修复未落地）：
+// ---------------- P6 修复轮回归锁（评审 verdict=FIX_REQUIRED 驱动，correctness lens 实证） ----------------
+// 缺陷锚点（P6 评审发现；红测先行随修复转绿，现为回归锁）：
 //   1) 并发 record 丢计数——read-modify-write 无互斥（feedback.mjs record 读-改-写窗口），
 //      10 并发实得 occurrences<10；
 //   2) 损坏条目（缺 frontmatter）拖死全部四动词——readEntries 的 splitEntry 抛

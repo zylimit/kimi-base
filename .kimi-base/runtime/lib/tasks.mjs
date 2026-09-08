@@ -57,6 +57,8 @@ export async function taskStart(ctx, input) {
   if (!ownedPaths.length) throw usageError('task start 需要 --owned "glob,glob"（至少一个拥有路径）');
   const risk = String(input.risk ?? '').trim();
   if (!RISKS.includes(risk)) throw usageError(`task start 需要 --risk low|medium|high`);
+  // REQ-057：作者身份入账本（authorship 账本接线），缺省 main-agent；review verdict 据此拒作者自审。
+  const author = String(input.author ?? '').trim() || 'main-agent';
   const fingerprint = await gitFingerprint(ctx);
   const knownHashes = await digestOwnedPaths(ctx, [...new Set(ownedPaths)].sort());
   const now = nowIso();
@@ -64,6 +66,7 @@ export async function taskStart(ctx, input) {
     id: `task-${now.replace(/[-:.TZ]/g, '').slice(0, 14)}-${randomBytes(3).toString('hex')}`,
     goal,
     risk,
+    author,
     ownedPaths: [...new Set(ownedPaths)].sort(),
     status: 'active',
     createdAt: now,
