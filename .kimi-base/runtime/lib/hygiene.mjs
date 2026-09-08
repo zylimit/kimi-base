@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readArchBaseline } from './arch.mjs';
 import { PRE_BASH_RULE_IDS } from './classifier.mjs';
-import { boundedText, nowIso, runProcess, toPosix } from './core.mjs';
+import { boundedText, nextStepFor, nowIso, runProcess, toPosix } from './core.mjs';
 import { fastDebtOf, fastModeStatus } from './fast.mjs';
 import { changedPaths } from './git.mjs';
 import { latestReceipts, readLedgerEntries, readLedgerHead, reconcileLedgerHead, verifyLedgerHistory } from './ledger.mjs';
@@ -284,7 +284,11 @@ export async function runDod(ctx) {
       maxOutput: 400000
     });
     if (result.status === 'BLOCKED') {
-      steps.push({ id: step.id, status: 'FAIL', exitCode: null, durationMs: result.durationMs, reason: `无法启动子进程：${result.error?.message ?? result.stderr.trim()}` });
+      steps.push({
+        id: step.id, status: 'FAIL', exitCode: null, durationMs: result.durationMs,
+        reason: `无法启动子进程：${result.error?.message ?? result.stderr.trim()}`,
+        nextStep: nextStepFor('dod-step', { id: step.id, args: step.args })
+      });
       continue;
     }
     const status = classifyStepExit(result.exitCode);
@@ -294,6 +298,8 @@ export async function runDod(ctx) {
       status,
       exitCode: result.exitCode,
       durationMs: result.durationMs,
+      // REQ-060：FAIL 步骤必须带可执行 nextStep（重跑命令），不得只报症状。
+      ...(status === 'FAIL' ? { nextStep: nextStepFor('dod-step', { id: step.id, args: step.args }) } : {}),
       // 非 PASS 才带输出尾部（有界）：失败/降级的上下文必须可见，但绝不灌爆输出。
       ...(status === 'PASS' ? {} : { outputTail: output.slice(-15) }),
       ...(result.outputTruncated ? { note: '输出被截断（>400KB），完整输出请逐跑该步' } : {})

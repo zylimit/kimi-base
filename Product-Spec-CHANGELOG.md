@@ -1,5 +1,29 @@
 # Product Spec 变更日志
 
+## v3.1.5（2026-09-08）REQ-035 阈值与 REQ-059 对齐
+
+### 为什么改
+
+P7 落地 agents-lint 6000 字节单档预算后，REQ-035 仍写 >16000 旧阈值（评审发现的规格残留），按"文档向被执法的现实对齐"修订。
+
+### 变更
+
+- REQ-035：agents-lint 的 AGENTS.md 体积阈值 >16000 → >6000（判 error）。
+- 版本号 v3.1.4 → v3.1.5。
+
+## v3.1.4（2026-09-08）P7 激活：REQ-059 宪法瘦身 + REQ-060 修复指令体 + REQ-061 quarantine 原语
+
+### 为什么改
+
+P7 完成：宪法体积预算锁定 6000 字节（REQ-059）；gate/dod/quality 未过项 100% 带可执行 nextStep 修复指令体，错误信息即给 agent 的修复指令（REQ-060）；运行态 JSON 损坏统一走 quarantine 原语——隔离为 .corrupt-<时间戳> + quarantine.jsonl 事件记账 + risk scan 响亮浮出，ledger 头锚与 receipts/strength 等直读点补齐，不再内存打标静默兜底（REQ-061）。按 REQ-067 机制摘 planned 标记。
+
+### 变更
+
+- REQ-059（宪法瘦身与执法率门禁）摘 planned(P7) 标记：agents-lint 体积预算收敛为 >6000 字节 error（原 >12000 warning / >16000 error 中间档取消），验收 tests/robustness.test.mjs REQ-059 段 2 用例全绿。
+- REQ-060（修复指令体）摘 planned(P7) 标记：nextStep 单源 helper `lib/core.mjs nextStepFor(kind, context)`；gate FAIL/BLOCKED 回执条目、quality status UNCOVERED 条目、dod FAIL 步骤逐条渲染，验收 tests/robustness.test.mjs REQ-060 段 3 用例全绿。
+- REQ-061（quarantine 原语）摘 planned(P7) 标记：`lib/state.mjs quarantineState` 导出为唯一隔离原语；readLedgerHead 损坏分支（"锚被篡改"高危告警与隔离并存）、latestReceipts 损坏回执、strength 运行态直读点全部接入，验收 tests/robustness.test.mjs REQ-061 段 3 用例全绿。
+- 版本号 v3.1.3 → v3.1.4。
+
 ## v3.1.3（2026-09-08）P5 激活：REQ-057 评审强化；P11 批次二收尾：REQ-072/073/074
 
 ### 为什么改

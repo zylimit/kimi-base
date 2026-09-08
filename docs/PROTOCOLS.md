@@ -329,7 +329,7 @@ error → exit 1；需求目录无文件 → exit 3。
 
 ### 14.3 agents-lint
 
-根 `AGENTS.md` 缺失 → error；>12000 字节 warning（每次请求全额重发）；>16000 字节 error。error → exit 1。
+根 `AGENTS.md` 缺失 → error；>6000 字节 error（REQ-059 宪法瘦身预算：宪法只放不变量+指针，细则下沉 `.kimi-base/rules/`；每次请求全额重发，体积是税）。error → exit 1。
 
 ## 15. 规模化治理协议（P6：discover / cochange / budget / fleet / release）
 

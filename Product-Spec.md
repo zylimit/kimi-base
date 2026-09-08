@@ -111,7 +111,7 @@
   验收：spec 测试组全绿（各违例类/覆盖门禁/悬空引用/路径过滤/预算省略）。
 - REQ-034 宪法执法率：`rules-audit` 必须把规则行分类为 enforced/declared-prompt-only/unenforced 并报告执法率；默认必须纯建议（exit 0）；当 rulesAudit.maxUnenforced 设数字且超限时必须 exit 1。
   验收：rules-audit 测试（三态计数 + 阈值接线）全绿。
-- REQ-035 资产 lint：当 skill/agent 资产漂移时，`skills-lint` 必须校验 name==目录名/description 长度（>500 字符 error）/体积/重名；`agents-lint` 必须把根 AGENTS.md 缺失与 >16000 字节判 error；两者 error 必须 exit 1。
+- REQ-035 资产 lint：当 skill/agent 资产漂移时，`skills-lint` 必须校验 name==目录名/description 长度（>500 字符 error）/体积/重名；`agents-lint` 必须把根 AGENTS.md 缺失与 >6000 字节判 error；两者 error 必须 exit 1。
   验收：skills-lint/agents-lint 测试（名不符/描述超长/AGENTS.md 缺失/超体积）全绿。
 
 ### 三面执法与规模化治理（v2.0 P5/P6）
@@ -156,13 +156,10 @@
 - REQ-058 feedback 引擎化：当执行 `feedback record/scan/propose` 时，引擎必须机器维护 occurrences 与 FEEDBACK-INDEX（同主题去重）；scan 必须检出毕业候选（单条 occurrences≥3、同失败模式跨文件 3+、无覆盖模式 5+）；propose 必须按"可执行 check > fitness 规则 > skill 步骤 > AGENTS.md 散文"优先级给结构化提议且永不自动改规则；被拒提议必须记 skipped 不再重复提议。
   验收：feedback 测试组（计数去重/三档聚类候选/优先级排序/skipped 不重复/零自动落地）全绿。
 - REQ-059 宪法瘦身与执法率门禁：当 rules-audit 配置 maxUnenforced 阈值时，无执法规则超阈必须 exit 1；根 AGENTS.md 必须保持"地图非手册"形态（不变量+指针，细则下沉 .kimi-base/rules/），体积不得超 6000 字节。
-  状态：planned(P7)
   验收：rules-audit 阈值红锁测试（注入无执法规则 exit 1）+ agents-lint 体积断言全绿。
 - REQ-060 修复指令体：当 gate/dod/quality 输出 FAIL 或 BLOCKED 时，每条未过项必须带 nextStep 字段（可直接执行的修复命令或路径），不得只报症状。
-  状态：planned(P7)
   验收：gate/dod 测试组（FAIL/BLOCKED 条目 100% 带 nextStep）全绿。
 - REQ-061 quarantine 原语：当读取任何运行态 JSON 失败（损坏/不可解析）时，引擎必须把损坏文件隔离为 .corrupt-<时间戳> 并记录事件，不得静默重建、不得静默保留按健康数据使用。
-  状态：planned(P7)
   验收：state 测试组（注入损坏 JSON→隔离+事件/不静默重建）全绿。
 - REQ-062 三层反馈分级：当 verification-matrix 声明检查时，每条检查必须标注反馈层（inner=commit 前秒级可阻塞/middle=评审级可阻塞/outer=趋势健康信号性）；dod 输出必须按层组织，outer 层失败必须响亮可见但不混入 inner 判定。
   状态：planned(P8)

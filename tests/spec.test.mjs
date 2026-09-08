@@ -403,7 +403,7 @@ describe('skills-lint 对话型工艺', RT, () => {
 });
 
 describe('agents-lint', RT, () => {
-  test('根 AGENTS.md 缺失 → exit 1；>16000 字节 → exit 1；正常 → exit 0', (t) => {
+  test('根 AGENTS.md 缺失 → exit 1；>6000 字节 → exit 1；正常 → exit 0', (t) => {
     const dir = mkdtemp(t);
     writeHarness(dir);
     const missing = run(['agents-lint'], { cwd: dir });

@@ -589,8 +589,9 @@ export async function skillsLint(ctx) {
 // agents-lint —— 根 AGENTS.md 契约（每次请求都重发，体积是税）
 // ════════════════════════════════════════════════════════════════════════════
 
-const AGENTS_WARN_BYTES = 12000;
-const AGENTS_ERROR_BYTES = 16000;
+// REQ-059 宪法瘦身预算：根 AGENTS.md 每次请求都全额重发，体积是税——
+// 宪法只放不变量+指针（地图非手册），细则下沉 .kimi-base/rules/；超 6000 字节 = error。
+const AGENTS_ERROR_BYTES = 6000;
 
 export async function agentsLint(ctx) {
   const findings = [];
@@ -604,9 +605,7 @@ export async function agentsLint(ctx) {
     return { ok: false, bytes: 0, findings, counts: { error: 1, warning: 0 } };
   }
   if (bytes > AGENTS_ERROR_BYTES) {
-    findings.push({ file: 'AGENTS.md', severity: 'error', code: 'ROOT_AGENTS_OVERSIZE', message: `AGENTS.md ${bytes} 字节（>${AGENTS_ERROR_BYTES}）；宪法只放不变量，流程下沉 skills/rules` });
-  } else if (bytes > AGENTS_WARN_BYTES) {
-    findings.push({ file: 'AGENTS.md', severity: 'warning', code: 'ROOT_AGENTS_LARGE', message: `AGENTS.md ${bytes} 字节（>${AGENTS_WARN_BYTES}，逼近 ${AGENTS_ERROR_BYTES} 上限）；每次请求都全额重发` });
+    findings.push({ file: 'AGENTS.md', severity: 'error', code: 'ROOT_AGENTS_OVERSIZE', message: `AGENTS.md ${bytes} 字节（>${AGENTS_ERROR_BYTES} 预算，REQ-059）；宪法只放不变量+指针，细则下沉 .kimi-base/rules/（地图非手册）` });
   }
   const errors = findings.filter((item) => item.severity === 'error');
   return { ok: errors.length === 0, bytes, findings, counts: { error: errors.length, warning: findings.length - errors.length } };

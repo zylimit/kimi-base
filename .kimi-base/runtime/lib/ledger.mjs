@@ -12,7 +12,7 @@ import process from 'node:process';
 import { atomicWrite, boundedText, contentHashOf, nowIso, readJsonFile, sha256, toPosix } from './core.mjs';
 import { fastDebtOf } from './fast.mjs';
 import { LEDGER_FILE, LEDGER_HEAD_FILE } from './paths.mjs';
-import { stateFile, withFileLock } from './state.mjs';
+import { stateFile, quarantineState, withFileLock } from './state.mjs';
 
 export const CHAIN_GENESIS = 'GENESIS';
 export function chainLink(previous, contentHash) {
@@ -143,10 +143,15 @@ export async function verifyLedgerHistory(ctx) {
 // 改写必须与提交史对账，才是真正的缓解。
 
 export async function readLedgerHead(ctx) {
+  const filePath = stateFile(ctx, LEDGER_HEAD_FILE);
   try {
-    return await readJsonFile(stateFile(ctx, LEDGER_HEAD_FILE), { required: false });
-  } catch {
-    return { __corrupt: true }; // 锚不可解析按伪造面处理（对账失败），不假绿
+    return await readJsonFile(filePath, { required: false });
+  } catch (error) {
+    // REQ-061：锚不可解析走 quarantine 原语——隔离原件为 .corrupt-<ts> 保留 forensic
+    // 证据并记事件（risk scan 经 state-quarantined 响亮浮出），不只在内存里打标静默兜底。
+    // 内存返回值仍按伪造面对账（"锚被篡改"高危告警与隔离并存），不假绿。
+    if (error.code === 'JSON_PARSE_FAILED') await quarantineState(ctx, filePath, error);
+    return { __corrupt: true };
   }
 }
 
@@ -330,7 +335,16 @@ export async function latestReceipts(ctx) {
   }
   const map = new Map();
   for (const name of names.filter((item) => item.endsWith('.json')).sort()) {
-    const value = await readJsonFile(path.join(directory, name), { required: false });
+    let value;
+    try {
+      value = await readJsonFile(path.join(directory, name), { required: false });
+    } catch (error) {
+      // REQ-061：回执同为运行态 JSON——损坏走 quarantine 原语（隔离+记账），
+      // 被隔离的回执按"无 fresh 证据"处理（完成门/quality 缺口响亮可见），不拖死读者。
+      if (error.code !== 'JSON_PARSE_FAILED') throw error;
+      await quarantineState(ctx, path.join(directory, name), error);
+      continue;
+    }
     if (value && typeof value.checkId === 'string') map.set(value.checkId, value);
   }
   return map;

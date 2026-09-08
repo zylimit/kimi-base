@@ -11,7 +11,7 @@ import path from 'node:path';
 import { loadCatalog, moduleMatches } from './catalog.mjs';
 import { HarnessError, atomicWrite, degradedError, normalizeLf, nowIso, readJsonFile, sha256, stableJson, usageError } from './core.mjs';
 import { STRENGTH_CONFIG_REL, STRENGTH_DECISIONS_FILE, STRENGTH_STATE_FILE } from './paths.mjs';
-import { stateFile } from './state.mjs';
+import { quarantineState, stateFile } from './state.mjs';
 
 // ---------------- 封闭轴集与档序（REQ-051；轴集封闭，未知轴配置期拒绝） ----------------
 
@@ -244,7 +244,16 @@ export async function loadStrengthConfig(ctx) {
 }
 
 async function readStrengthState(ctx) {
-  const state = await readJsonFile(stateFile(ctx, STRENGTH_STATE_FILE), { required: false });
+  let state;
+  try {
+    state = await readJsonFile(stateFile(ctx, STRENGTH_STATE_FILE), { required: false });
+  } catch (error) {
+    // REQ-061：运行态 JSON 损坏走 quarantine 原语（隔离保证据+事件记账）；
+    // 强度态决定门禁档位，损坏必须当场响亮报错（fail-closed），不得静默按默认档继续。
+    if (error.code !== 'JSON_PARSE_FAILED') throw error;
+    await quarantineState(ctx, stateFile(ctx, STRENGTH_STATE_FILE), error);
+    throw error;
+  }
   if (state === null) return null;
   if (!state || typeof state.profile !== 'string') {
     throw new HarnessError(`${STRENGTH_STATE_FILE} 形状非法（需要 {profile}）`, 'CONFIG_INVALID');

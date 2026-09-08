@@ -10,7 +10,7 @@ import { CONTRACTS, GLOBAL_FLAGS, STRENGTH_CONTRACT } from './cli-contracts.mjs'
 import { cochangeAnalysis } from './cochange.mjs';
 import { findProjectRoot, loadContext, requireProjectRoot } from './config.mjs';
 import { buildContextPack, impactAnalysis } from './context.mjs';
-import { HarnessError, TOOL_VERSION, csv, nowIso, parseCliArgs, usageError } from './core.mjs';
+import { HarnessError, TOOL_VERSION, csv, nextStepFor, nowIso, parseCliArgs, usageError } from './core.mjs';
 import { discoverCatalog, discoverWrite, initModulesAlias } from './discover.mjs';
 import { fastModeSet } from './fast.mjs';
 import { listFeedback, proposeFeedback, recordFeedback, scanFeedback, skipFeedback } from './feedback.mjs';
@@ -102,7 +102,7 @@ hook  outward 契约保持 0（放行）/2（拦截）。
   trace                            需求→测试追溯门禁（覆盖率不足/代码·测试悬空引用 exit 1）
   rules-audit [--files a,b]        宪法执法率审计（默认纯建议；rulesAudit.maxUnenforced 超限 exit 1）
   skills-lint                      .kimi-code/skills 契约（name==目录/description/体积/重名；error exit 1）
-  agents-lint                      根 AGENTS.md 必备与体积预算（>16000 字节 exit 1）
+  agents-lint                      根 AGENTS.md 必备与体积预算（>6000 字节 exit 1，REQ-059）
   dod                              Definition of Done 静态电池（catalog/skills/agents/spec/adr/
                                    fitness --all/trace/receipt verify/arch check；任一 FAIL exit 2，
                                    仅降级 exit 3）
@@ -152,7 +152,7 @@ waiver list
   trace: `trace\n  需求→测试追溯门禁：声明集来自 spec lint；扫描 tracked ∪ 未跟踪（exclude-standard）\n  ≤512KB 文本文件里的 id 引用。≥1 个测试文件（spec.testGlobs）引用 = VERIFIED。\n  coverage = verified/declared 必须 ≥ spec.minCoverage（默认 1.0）；代码/测试引用\n  未声明 id = 悬空（失败）；文档悬空只报告。对称规则：只扫 REQ/NFR 两个声明族。\n  失败 exit 1；非 git → exit 3。`,
   'rules-audit': `rules-audit [--files a,b]（默认 AGENTS.md）\n  规则行（编号/子弹/表格行，≥25 字符，代码围栏外）分类：backtick token 能解析到\n  matrix check id / 引擎动词 / fitness 规则 id = ENFORCED；行/段声明 提示词|prompt-only|(P)\n  = declared-prompt-only；其余 = UNENFORCED 发现。默认纯建议恒 exit 0；\n  harness.json rulesAudit.maxUnenforced 设数字后超限 exit 1。报告执法率。`,
   'skills-lint': `skills-lint\n  .kimi-code/skills/*/SKILL.md 契约：name kebab-case 且 == 目录名；description 必填、\n  >500 字符 error、>220 warning；正文 >24KB warning；重名 error；对话型 skill（内置清单）\n  缺「对话示例」/「反例」节 warning（REQ-075 坡道）。error → exit 1。`,
-  'agents-lint': `agents-lint\n  根 AGENTS.md 必须存在（缺失 error）；>12000 字节 warning（每次请求全额重发）；\n  >16000 字节 error。error → exit 1。`,
+  'agents-lint': `agents-lint\n  根 AGENTS.md 必须存在（缺失 error）；>6000 字节 error（REQ-059 宪法瘦身预算：\n  宪法只放不变量+指针，细则下沉 .kimi-base/rules/）。error → exit 1。`,
   dod: `dod\n  Definition of Done 静态电池（子进程跑真实 CLI，定义唯一事实源 = lib/hygiene.mjs DOD_STEPS）：\n  catalog lint → skills-lint → agents-lint → spec lint → adr check → fitness --all（全仓）\n  → trace → receipt verify → arch check。每步归级 PASS/FAIL/DEGRADED（1/2=FAIL、\n  3=DEGRADED、4=STALE 按 FAIL 计）。任一 FAIL → exit 2；无 FAIL 但有 DEGRADED → exit 3\n  （降级响亮报告，绝不静默）；全 PASS → 0。pre-push 钩子与 CI 的第二/三道闸。`,
   selftest: `selftest\n  运行时自身冒烟：哈希/指纹/回执往返/分类器样例/原子写/frontmatter/import 提取。`
 };
@@ -469,7 +469,15 @@ async function dispatchCommand(argv) {
       printResult(`gate ${result.overall}`, [
         `risk=${result.plan.risk} fingerprint=${result.fingerprint.slice(0, 16)} fast=${result.fastActive}`,
         `统计：PASS=${result.counts.PASS} FAIL=${result.counts.FAIL} BLOCKED=${result.counts.BLOCKED} SKIPPED=${result.counts.SKIPPED}`,
-        ...result.receipts.map((item) => `- ${item.status} ${item.checkId}（${item.checkKind}）${item.reason ? `：${item.reason}` : ''}${item.evidencePath ? ` 证据=${item.evidencePath}` : ''}`)
+        ...result.receipts.map((item) => {
+          const line = `- ${item.status} ${item.checkId}（${item.checkKind}）${item.reason ? `：${item.reason}` : ''}${item.evidencePath ? ` 证据=${item.evidencePath}` : ''}`;
+          // REQ-060：FAIL/BLOCKED 条目必须带可执行 nextStep（修复指令体），不得只报症状。
+          if (item.status !== 'FAIL' && item.status !== 'BLOCKED') return line;
+          const nextStep = item.status === 'FAIL'
+            ? nextStepFor('gate-fail', { risk: result.plan.risk, checkId: item.checkId, command: item.argvDisplay })
+            : nextStepFor('gate-blocked', { risk: result.plan.risk, checkId: item.checkId, kind: item.checkKind, command: item.argvDisplay, missingKind: item.checkId.endsWith(':__missing__') });
+          return `${line}；nextStep：${nextStep}`;
+        })
       ]);
       return result.overall === 'PASS' ? 0 : 2;
     }
@@ -483,7 +491,7 @@ async function dispatchCommand(argv) {
         const coverage = await attributeCoverage(ctx, {});
         printResult(coverage.ok ? 'quality status：覆盖通过' : 'quality status：存在 uncovered（exit 2）', [
           `范围：${coverage.scope}；fingerprint=${coverage.fingerprint.slice(0, 16)}`,
-          ...coverage.attributes.map((item) => `- ${item.covered ? 'covered' : 'UNCOVERED'} ${item.attribute}(${item.tier}) [${item.modules.join(',')}] ${item.reason}`),
+          ...coverage.attributes.map((item) => `- ${item.covered ? 'covered' : 'UNCOVERED'} ${item.attribute}(${item.tier}) [${item.modules.join(',')}] ${item.reason}${item.covered ? '' : `；nextStep：${nextStepFor('quality-uncovered', { attribute: item.attribute, reason: item.reason })}`}`),
           coverage.deferredByFastMode.length ? `Fast Mode 延期：${coverage.deferredByFastMode.join(', ')}` : ''
         ]);
         return coverage.ok ? 0 : 2;
@@ -912,7 +920,7 @@ async function dispatchCommand(argv) {
       const ctx = await needProject();
       const result = await agentsLint(ctx);
       printResult(result.ok ? 'agents-lint 通过' : 'agents-lint 发现违例（exit 1）', [
-        `AGENTS.md ${result.bytes} 字节（warning>12000 / error>16000）`,
+        `AGENTS.md ${result.bytes} 字节（预算 ≤6000，REQ-059）`,
         ...result.findings.map((item) => `- ${item.severity} [${item.code}] ${item.file ? `${item.file} ` : ''}${item.message}`)
       ]);
       return result.ok ? 0 : 1;
@@ -923,7 +931,7 @@ async function dispatchCommand(argv) {
       const lines = [
         `统计：PASS=${result.counts.PASS} FAIL=${result.counts.FAIL} DEGRADED=${result.counts.DEGRADED} STALE=${result.counts.STALE}`,
         ...result.steps.flatMap((step) => [
-          `- ${step.status} ${step.id}（exit ${step.exitCode ?? 'N/A'}，${(step.durationMs / 1000).toFixed(1)}s）${step.reason ? `：${step.reason}` : ''}${step.note ? `；note ${step.note}` : ''}`,
+          `- ${step.status} ${step.id}（exit ${step.exitCode ?? 'N/A'}，${(step.durationMs / 1000).toFixed(1)}s）${step.reason ? `：${step.reason}` : ''}${step.note ? `；note ${step.note}` : ''}${step.nextStep ? `；nextStep：${step.nextStep}` : ''}`,
           ...(step.outputTail ?? []).map((line) => `    ${line}`)
         ])
       ];

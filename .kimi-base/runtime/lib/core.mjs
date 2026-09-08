@@ -303,6 +303,34 @@ export function nowIso() {
   return new Date().toISOString();
 }
 
+// REQ-060 修复指令体：gate/dod/quality 的 FAIL/BLOCKED/UNCOVERED 条目必须指给 agent
+// 一个具体可执行动作（重跑命令或配置文件路径），不允许"请检查"式空泛指引——
+// 错误信息本身就是给 agent 的修复指令。唯一定义处，禁止各处自写。
+export function nextStepFor(kind, context = {}) {
+  const rerunGate = `node .kimi-base/runtime/kimi-base.mjs gate${context.risk ? ` --risk ${context.risk}` : ''}`;
+  switch (kind) {
+    case 'gate-fail':
+      return `修复该检查的失败原因后重跑取证：\`${rerunGate}\`（本检查命令：${context.command ?? `见 .kimi-base/verification-matrix.json 中 ${context.checkId} 的定义`}）`;
+    case 'gate-blocked':
+      if (context.missingKind) {
+        return `在 .kimi-base/verification-matrix.json 的 checks[] 为 kind ${context.kind} 增加至少一个带 command/executable/builtin 的检查，然后重跑 \`${rerunGate}\``;
+      }
+      if (!context.command) {
+        return `在 .kimi-base/verification-matrix.json 为检查 ${context.checkId} 配置 command/executable/builtin 字段（缺命令 = BLOCKED，绝不假绿），然后重跑 \`${rerunGate}\``;
+      }
+      return `排除执行障碍（平台/依赖/启动失败，见本条 reason）后重跑 \`${rerunGate}\`；本检查命令：${context.command}`;
+    case 'quality-uncovered':
+      if (String(context.reason ?? '').includes('未接线')) {
+        return `在 .kimi-base/verification-matrix.json 增加 attributes 含 "${context.attribute}" 的检查完成接线，然后重跑 \`${rerunGate}\` 产出 fresh PASS 证据`;
+      }
+      return `重跑 \`${rerunGate}\` 产出 ${context.attribute} 认领检查的 fresh PASS 证据（有 FAIL 反证先修该检查；账本断链先查 .kimi-base/state/ledger.jsonl）`;
+    case 'dod-step':
+      return `按本条输出尾部修复后重跑该步验证：\`node .kimi-base/runtime/kimi-base.mjs ${(context.args ?? []).join(' ')}\`，修复完成后全量重跑 \`node .kimi-base/runtime/kimi-base.mjs dod\``;
+    default:
+      throw new HarnessError(`未知 nextStep 类别：${kind}`, 'NEXTSTEP_KIND_UNKNOWN');
+  }
+}
+
 export function assertPlainObject(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new HarnessError(`${label} 必须是对象`, 'CONFIG_INVALID');

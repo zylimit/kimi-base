@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { HarnessError, atomicWrite, nowIso, readJsonFile, sleep } from './core.mjs';
+import { HarnessError, atomicWrite, nowIso, pathExists, readJsonFile, sleep } from './core.mjs';
 
 export function stateFile(ctx, relativeName) {
   if (path.isAbsolute(relativeName) || relativeName.split(/[\\/]/).includes('..')) {
@@ -15,9 +15,20 @@ export function stateFile(ctx, relativeName) {
 
 // 腐化状态文件既不允许被悄悄重建（可审计），也不允许卡死引擎（韧性）：
 // 挪到 *.corrupt-<ts> 并记 quarantine.jsonl，调用方从默认值继续，事件保持可见。
-async function quarantineState(ctx, filePath, error) {
+// REQ-061：唯一隔离原语——任何运行态 JSON 读取点的损坏处理都必须走这里（ledger 头锚、
+// receipts 等绕过 readState/updateState 的直读点同），禁止发明第二套隔离机制。
+export async function quarantineState(ctx, filePath, error) {
   const quarantined = `${filePath}.corrupt-${Date.now()}`;
-  await rename(filePath, quarantined);
+  try {
+    await rename(filePath, quarantined);
+  } catch (renameError) {
+    // 并发竞抢容忍：多进程同时隔离同一损坏文件时赢家已完成 rename，输家拿 ENOENT——
+    // 源已消失即视为隔离完成（证据已在赢家的 .corrupt-<ts> 里，记账由赢家负责）；
+    // 源仍在却 rename ENOENT 属异常，不吞；ENOENT 以外的错误一律照抛。
+    if (renameError.code !== 'ENOENT') throw renameError;
+    if (await pathExists(filePath)) throw renameError;
+    return quarantined;
+  }
   try {
     await mkdir(ctx.stateDir, { recursive: true });
     await appendFile(path.join(ctx.stateDir, 'quarantine.jsonl'), `${JSON.stringify({
