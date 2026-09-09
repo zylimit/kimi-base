@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v3.1.0（2026-09-10）
+
+开发前四阶段深化（P12，REQ-076~081）：需求采访工业化（question-bank 五段结构问题库+反失败自检+主问题预算+搜索双遍）；界面设计链从零到一（design-brief-builder/design-maker/DESIGN.md 模板+ui-slop 审计）；arch 三类决定分离+威胁模型触发清单；dfx AI 概率性四问；dev-planner 粒度校准+plan-lint 机械拦截占位符；review 机械闸（置脏/Stop 阻断/三振熔断）；进化补强（scores 带依据+双向扫描）。情境检验 v2 双盲实证设计采访四维显著优于裸指令。证据：459 行为测试 + 六 lens 评审 ACCEPT。
+
 ## v3.0.0（2026-09-08）
 
 对标并超越 dsh-base/cc-base/codex-base 的 v3 重构（P0–P11，结构化对抗评审逐批 ACCEPT）：强度策略引擎（四档×12 轴、extends 只收紧、floor 只升不降、policyHash 绑证据）；Receipt v2 绑定面 + fast 证据贷款账本 + 可提交证据模式（证据可移植性为家族独有）；CLI 契约注册表；discover 真实仓健壮性（SCC 凝聚）；feedback 引擎化；沟通桥梁层（认知标注四态/交互深度四档/业务含义过链/记忆依据链）；三层反馈分级；渐进采用阶梯；棘轮持久化；安装器事务锁；自我 eval 套件。证据：421 行为测试 + selftest 27/27 + run-eval regression 20/20 全绿；release 八条件全 [x] READY。

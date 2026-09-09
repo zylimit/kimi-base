@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "tool": "kimi-base/3.0.0",
+  "tool": "kimi-base/3.1.0",
   "hashAlgorithm": "sha256-lf-v1",
   "files": [
     {
@@ -230,7 +230,7 @@
     {
       "path": ".kimi-base/runtime/lib/core.mjs",
       "source": ".kimi-base/runtime/lib/core.mjs",
-      "sha256": "1a21cd3dff1ff5bb5947d157dd86b150fddd2bc7931003ba394348e7bf920da6",
+      "sha256": "7325334af05b5de611c04a2c37d92dc935a096eb42a1155daf72c9c071bd32da",
       "bytes": 15313
     },
     {
@@ -699,5 +699,5 @@
       "seed": true
     }
   ],
-  "digest": "0019d26226879efd4811e70fc46ef8e7ba5fd591a5a19a11210574d844209399"
+  "digest": "5414964ca56088b3910048a328674087a4d789ba46c7f1d5535a30dc9dfc3429"
 }
