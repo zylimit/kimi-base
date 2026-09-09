@@ -97,8 +97,9 @@ no-secret-literal(error) / no-pii-in-logs(error) / no-silent-failure(error) / no
 | --- | --- |
 | `pre-tool-use-bash` | 危险命令分类：deny 恒拦（rm -rf/git reset --hard/git clean/mkfs/fork 炸弹/push --force…）；review 默认拦（git push/curl\|sh/凭据外发含跨管道），`hooks.reviewAction=warn` 可降级为提示。穿透 sudo/env/timeout/嵌套 sh -c。 |
 | `pre-write` | 写前对账：active task owned 路径被任务外改动 / 越界写（仓外、.git）/ 敏感文件（.env、私钥）→ exit 2 |
-| `stop` | 完成门：工作树有代码改动但缺 fresh receipt 或 progress.md 未同步 → exit 2；同一指纹连拦 `hooks.stopMaxBlocks`（默认 3）次后放行并醒目提示欠账（保险丝） |
-| `prompt-submit` | 修正信号关键词（`feedback.signalKeywords` 可配）→ stdout 提醒记录 feedback |
+| `post-edit` | REQ-080 置脏端：PostToolUse(Edit/Write) 观察型事件（宿主忽略返回值，永不阻断）。代码文件（扩展名白名单）且仓内、非 .kimi-base/.git → 置脏 `state/review-dirty.json`；文档/配置/数据文件不置脏 |
+| `stop` | 完成门：脏标记 ∩ 当前变更集 = 未经评审代码改动 → exit 2 并指引派发 review（终审 ACCEPT 自动清脏）；缺 fresh receipt 或 progress.md 未同步 → exit 2；同一阻断清单连拦 `hooks.stopMaxBlocks`（默认 3）次后第 4 次放行并醒目提示欠账（保险丝，防子代理死锁） |
+| `prompt-submit` | 收窄高信号修正词（`feedback.signalKeywords` 可配；"能不能/为什么"这类宽词不进表）→ stdout 提醒派发 feedback-observer 记录 feedback |
 | `subagent-stop` | "勿信自报、核客观证据"验收提醒 |
 | `pre-compact` | 写 `state/compaction-note.json`（baseCommit/活跃任务/未完成检查） |
 | `session-start` | 会话横幅（任务/fast/待验证）+ 写会话基线 |
@@ -107,7 +108,7 @@ no-secret-literal(error) / no-pii-in-logs(error) / no-silent-failure(error) / no
 
 ## 运行态文件（`.kimi-base/state/`，一律 git-ignored）
 
-`tasks.json`（单 active 任务 + ownedPaths 哈希基线）/ `receipts/` / `ledger.jsonl`（超 `retention.ledgerMaxEntries` 轮转为 `ledger-archive-<ts>.jsonl` + anchor 续链）/ `evidence/` / `waivers.json` / `fast-mode.json`（expiresAt/expiresEpoch 自动过期）/ `compaction-note.json` / `gate-log.jsonl` / `arch-trend.json` / `review/session.json`（评审会话）/ `review/review-pack-*.md`（证据包）/ `review-backlog.json`（评审挂账，跨会话持久）/ `install-receipt.json` / `supervisor/`。例外：`.kimi-base/arch-baseline.json` **进 git**（带 reason 的存量债登记，可评审）。
+`tasks.json`（单 active 任务 + ownedPaths 哈希基线）/ `receipts/` / `ledger.jsonl`（超 `retention.ledgerMaxEntries` 轮转为 `ledger-archive-<ts>.jsonl` + anchor 续链）/ `evidence/` / `waivers.json` / `fast-mode.json`（expiresAt/expiresEpoch 自动过期）/ `compaction-note.json` / `gate-log.jsonl` / `arch-trend.json` / `review/session.json`（评审会话）/ `review/review-pack-*.md`（证据包）/ `review-backlog.json`（评审挂账，跨会话持久）/ `review-dirty.json`（REQ-080 评审脏标记：post-edit 置脏、终审 ACCEPT 清脏）/ `install-receipt.json` / `supervisor/`。例外：`.kimi-base/arch-baseline.json` **进 git**（带 reason 的存量债登记，可评审）。
 
 ## 性能预算（600k 设计目标）
 

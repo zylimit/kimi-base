@@ -10,7 +10,8 @@
 | 专职角色 | .kimi-code/agents/*.md（custom agents） | 8 角色：implementer/code-reviewer/tester/deployer/researcher/progress-recorder/feedback-observer/evolution-runner |
 | 防递归派发 | frontmatter `subagents: []` | 全部角色叶子化，编排权只在主 Agent |
 | 只读审查隔离 | frontmatter `disallowedTools` | code-reviewer/researcher 禁 Write/Edit |
-| 工作流固化 | .kimi-code/skills/*/SKILL.md | 16 个工作流 skill（需求/DFX/架构/计划/开发/审查/测试/修缺/发布/记忆/反馈/进化/红蓝/收尾/大仓/skill 工程） |
+| 工作流固化 | .kimi-code/skills/*/SKILL.md | 18 个工作流 skill（需求/设计采访/设计产出/DFX/架构/计划/开发/审查/测试/修缺/发布/记忆/反馈/进化/红蓝/收尾/大仓/skill 工程） |
+| 界面设计链 | design-brief-builder + design-maker skill + templates/DESIGN.md | 形态分轨采访 → Brief → 设计产出（组件先行/状态变体触发规则/无设计工具降级手动模式）；优先级链 设计稿 > Brief > Spec > 继承先例（REQ-077） |
 | 会话启动路由 | 插件 sessionStart.skill | kimi-base skill：标记检测→横幅→路由（路由表单源 `.kimi-base/rules/intent-routing.md`）；非标记项目自静默 |
 | 危险命令拦截 | PreToolUse hook（exit 2） | 语义化分类器：wrapper 穿透/凭据跨管道外发/git 破坏性子命令 |
 | 写前对账 | PreToolUse(Write\|Edit) hook | ownedPaths 哈希基线；越界写（仓外/.git/敏感文件）拦截 |

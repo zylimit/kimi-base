@@ -33,7 +33,7 @@
 - `.kimi-base/runtime/` 引擎（薄路由 kimi-base.mjs + lib/* 模块 + supervisor.mjs）
 - `.kimi-base/audit/` 独立审计脚本（禁 import 引擎）· `.kimi-base/githooks/` 第二道闸（`install --hooks` 挂载）
 - `.kimi-base/rules/` 下沉细则 · `.kimi-base/templates/` 文档模板 · `.kimi-base/adapters.json` 外部工具目录 · `.kimi-base/feedback/` 进化信号（INDEX+templates 示例进载荷，根下私人条目不进发布面）
-- `.kimi-code/` 8 agents + 16 skills（既是本仓 dogfood 也是安装载荷）
+- `.kimi-code/` 8 agents + 18 skills（既是本仓 dogfood 也是安装载荷）
 - `plugin/` 斜杠命令 + sessionStart skill · `tests/` 行为测试 · `docs/` 手册与 ADR
 
 ## 记忆

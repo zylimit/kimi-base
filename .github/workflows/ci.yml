@@ -30,6 +30,12 @@ jobs:
         run: node .kimi-base/audit/scan-secrets.mjs
       - name: 指令文件注入扫描（独立审计）
         run: node .kimi-base/audit/scan-instructions.mjs
+      # REQ-078：UI 审美 slop 检查（无前端文件时 exit 0 + SKIPPED 响亮声明）。
+      - name: UI slop 检查（独立审计）
+        run: node .kimi-base/audit/ui-slop.mjs
+      # REQ-079：计划无占位符检查（DEV-PLAN.md 占位词与"类似 Task N"式偷懒引用；无 DEV-PLAN.md 时 exit 3 响亮降级）。
+      - name: 计划占位符检查（独立审计）
+        run: node .kimi-base/audit/plan-lint.mjs
       - name: 载荷完整性（独立审计）
         run: node .kimi-base/audit/manifest.mjs --check
       - name: 行为测试

@@ -7,6 +7,8 @@
 | 意图 | Skill |
 | --- | --- |
 | 需求 / 立项 / 产品定义 | product-spec-builder（签字闸后才进下游） |
+| 设计风格 / 视觉方向 / UI 感受定轴 | design-brief-builder（需已批准 Spec；默认探索档签字闸强制） |
+| 设计稿 / 设计产出 / 页面与状态变体 | design-maker（需 Design-Brief；无设计工具走 DESIGN.md 降级） |
 | 架构设计 / 选型 / ADR / 防腐 | arch-designer → 读 `.kimi-base/rules/large-repo.md` |
 | 五性（韧性/安全/功能安全/隐私/可靠性） | dfx-designer → 读 `.kimi-base/rules/quality-attributes.md` |
 | 开发计划 / 拆解 / 排期 | dev-planner（无占位符原则） |

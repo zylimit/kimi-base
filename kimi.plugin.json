@@ -23,6 +23,12 @@
       "timeout": 5
     },
     {
+      "event": "PostToolUse",
+      "matcher": "^(Write|Edit)$",
+      "command": "node ./.kimi-base/runtime/kimi-base.mjs hook post-edit",
+      "timeout": 10
+    },
+    {
       "event": "Stop",
       "command": "node ./.kimi-base/runtime/kimi-base.mjs hook stop",
       "timeout": 10

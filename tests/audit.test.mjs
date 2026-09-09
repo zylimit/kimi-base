@@ -185,6 +185,192 @@ describe('scan-secrets', () => {
   });
 });
 
+// ---------------- ui-slop（REQ-078） ----------------
+
+describe('ui-slop（REQ-078：UI 审美静态检查）', () => {
+  // slop 夹具：行号是断言契约的一部分，调整布局必须同步修断言。
+  const SLOP_JSX = [
+    'export default function Hero() {',
+    '  return (',
+    '    <div className="rounded-2xl shadow-lg backdrop-blur-md">',
+    "      <h1 style={{ fontFamily: 'Inter, sans-serif' }}>Elevate your workflow</h1>",
+    "      <div style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }} />",
+    '    </div>',
+    '  );',
+    '}',
+    ''
+  ].join('\n');
+
+  test('slop 夹具必中：exit 1，error 规则带 file:line 点名', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'src/App.jsx', SLOP_JSX);
+    gitInitCommit(dir);
+    const r = runAudit('ui-slop.mjs', [], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    const report = jsonLine(r);
+    assert.equal(report.ok, false);
+    const rules = new Set(report.findings.map((f) => f.rule));
+    for (const rule of ['banned-font', 'purple-gradient-tells', 'marketing-copy']) {
+      assert.ok(rules.has(rule), `缺 ${rule} 命中，实际命中：${[...rules].join(',') || '（无）'}`);
+    }
+    const font = report.findings.find((f) => f.rule === 'banned-font');
+    assert.equal(font.file, 'src/App.jsx');
+    assert.equal(font.line, 4);
+    assert.equal(font.severity, 'error');
+    const gradient = report.findings.find((f) => f.rule === 'purple-gradient-tells');
+    assert.equal(gradient.file, 'src/App.jsx');
+    assert.equal(gradient.line, 5);
+    const copy = report.findings.find((f) => f.rule === 'marketing-copy');
+    assert.equal(copy.line, 4);
+    // warning 级（全家桶卡片/毛玻璃）必须可见但不得计入 error 数
+    assert.ok(report.findings.some((f) => f.rule === 'backdrop-blur-unjustified' && f.severity === 'warning' && f.line === 3), out(r));
+    assert.ok(report.findings.some((f) => f.rule === 'slop-card-combo' && f.severity === 'warning' && f.line === 3), out(r));
+    assert.ok(report.counts.error >= 3, out(r));
+  });
+
+  test('仅 warning（硬编码 hex 无变量、毛玻璃无理由）→ exit 0 且计数响亮', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'src/Card.jsx', "export const Card = () => (\n  <div className=\"backdrop-blur\" style={{ color: '#123456' }} />\n);\n");
+    gitInitCommit(dir);
+    const r = runAudit('ui-slop.mjs', [], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    const report = jsonLine(r);
+    assert.equal(report.ok, true);
+    assert.ok(report.counts.warning >= 2, out(r));
+    assert.equal(report.counts.error, 0);
+    assert.ok(report.findings.some((f) => f.rule === 'hardcoded-hex' && f.file === 'src/Card.jsx' && f.line === 2), out(r));
+  });
+
+  test('干净夹具（token/变量引用 + 语义注释留痕）不误报：exit 0 零发现', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'src/theme.css', [
+      ':root {',
+      '  --brand-primary: #2f6f4f;',
+      '  --brand-deep: #14532d;',
+      '}',
+      '.hero {',
+      '  font-family: var(--font-body);',
+      '  color: var(--brand-primary);',
+      '  background: linear-gradient(135deg, var(--brand-primary), var(--brand-deep));',
+      '}',
+      ''
+    ].join('\n'));
+    write(dir, 'src/body.js', [
+      '// ui-slop:ignore 品牌正文字体经 DESIGN.md 拍板（语义理由留痕）',
+      "const body = { fontFamily: 'Inter, system-ui' };",
+      'export default body;',
+      ''
+    ].join('\n'));
+    gitInitCommit(dir);
+    const r = runAudit('ui-slop.mjs', [], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.equal(jsonLine(r).findings.length, 0, out(r));
+  });
+
+  test('测试夹具豁免：*.test.* 内的 tell 字符串不触发（夹具合法携带 tell）', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'src/App.test.jsx', SLOP_JSX);
+    gitInitCommit(dir);
+    const r = runAudit('ui-slop.mjs', [], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.equal(jsonLine(r).scanned, 0, out(r));
+  });
+
+  test('无前端文件 → exit 0 但 SKIPPED 显式（放行 ≠ 全部通过）', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'README.md', '# 纯文档仓\n');
+    gitInitCommit(dir);
+    const r = runAudit('ui-slop.mjs', [], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    const report = jsonLine(r);
+    assert.equal(report.ok, true);
+    assert.equal(report.skipped, true);
+    assert.equal(report.reason, 'no-frontend-files');
+  });
+
+  /** 在临时脚本家目录跑 ui-slop.mjs（规则文件与脚本同目录解析） */
+  function runCopied(t, cwd, rulesContent) {
+    const home = mkdtemp(t, 'kimi-base-uislop-home-');
+    fs.mkdirSync(path.join(home, 'audit'), { recursive: true });
+    fs.copyFileSync(path.join(AUDIT, 'ui-slop.mjs'), path.join(home, 'audit', 'ui-slop.mjs'));
+    if (rulesContent !== undefined) {
+      fs.writeFileSync(path.join(home, 'audit', 'ui-slop-rules.json'), rulesContent);
+    }
+    const r = spawnSync(process.execPath, [path.join(home, 'audit', 'ui-slop.mjs')], { cwd, timeout: 60_000, encoding: 'utf8' });
+    if (r.error) throw new Error(`ui-slop 启动失败：${r.error.message}`);
+    return { code: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  }
+
+  test('规则文件缺失/损坏/非法 → exit 3 响亮降级（SKIPPED 不是 PASS）', (t) => {
+    const missing = runCopied(t, REPO, undefined);
+    assert.equal(missing.code, 3, out(missing));
+    assert.equal(jsonLine(missing).degraded, true);
+    assert.equal(jsonLine(missing).reason, 'rules-file-unreadable');
+    const corrupt = runCopied(t, REPO, '{ not json');
+    assert.equal(corrupt.code, 3, out(corrupt));
+    assert.equal(jsonLine(corrupt).degraded, true);
+    const invalid = runCopied(t, REPO, JSON.stringify({ version: 1, extensions: ['.jsx'], rules: [{ id: 'x', severity: 'error', pattern: '([', message: 'm' }] }));
+    assert.equal(invalid.code, 3, out(invalid));
+    assert.equal(jsonLine(invalid).reason, 'rules-file-invalid');
+  });
+
+  test('非 git 仓 → exit 3（拒绝猜测文件集）', (t) => {
+    const dir = mkdtemp(t);
+    const r = runAudit('ui-slop.mjs', [], { cwd: dir });
+    assert.equal(r.code, 3, out(r));
+    assert.equal(jsonLine(r).reason, 'not-a-git-repo');
+  });
+
+  test('symlink 越界：仓内 symlink 指向仓外含 slop 文件 → 跳过 + skippedSymlinks=1 + 仓外内容零进输出', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    const outside = mkdtemp(t, 'kimi-base-uislop-outside-');
+    write(outside, 'leak.jsx', SLOP_JSX);
+    fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+    try {
+      fs.symlinkSync(path.join(outside, 'leak.jsx'), path.join(dir, 'src', 'leak.jsx'));
+    } catch (e) {
+      t.skip(`环境不支持创建 symlink（${e.code ?? e.message}），按纪律显式跳过`);
+      return;
+    }
+    gitInitCommit(dir);
+    // 契约（trust 回归）：git ls-files 会列出 symlink，扫描面=仓根的承诺不得被 symlink 打破——
+    // 解析出仓一律跳过并计数留痕；仓外文件内容（含命中摘录）不得进 findings/任何输出（CI 日志泄漏面）。
+    const r = runAudit('ui-slop.mjs', [], { cwd: dir });
+    assert.equal(r.code, 0, `出仓 symlink 跳过不得判 error，实际 ${r.code}: ${out(r)}`);
+    const report = jsonLine(r);
+    assert.equal(report.skippedSymlinks, 1, `出仓 symlink 必须计数留痕：${r.stdout}`);
+    assert.equal(report.findings.length, 0, `仓外内容零进 findings：${JSON.stringify(report.findings)}`);
+    assert.ok(!out(r).includes('Elevate your workflow'), '仓外文件内容不得进任何输出');
+  });
+
+  test('子目录运行钉根：cwd 为仓子目录时扫描面仍是仓根，finding 路径仓根相对', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'src/App.jsx', SLOP_JSX);
+    write(dir, 'docs/notes.md', '# docs\n');
+    gitInitCommit(dir);
+    // 缺陷红测：git ls-files 在子目录跑只返回该子目录文件，扫描面随 cwd 收缩（根下 slop 漏网）。
+    // 契约：审计脚本必须把文件集钉在仓根（git rev-parse --show-toplevel 或 -C 根）。
+    const r = runAudit('ui-slop.mjs', [], { cwd: path.join(dir, 'docs') });
+    assert.equal(r.code, 1, `子目录运行不得缩小扫描面，实际 ${r.code}: ${out(r)}`);
+    const report = jsonLine(r);
+    assert.ok(report.findings.some((f) => f.file === 'src/App.jsx' && f.rule === 'purple-gradient-tells'),
+      `finding 必须以仓根相对路径点名 src/App.jsx：${JSON.stringify(report.findings)}`);
+  });
+
+  test('对真仓：本仓无前端 slop，exit 0（或显式 SKIPPED）', () => {
+    const r = runAudit('ui-slop.mjs', [], { cwd: REPO });
+    assert.equal(r.code, 0, out(r));
+    assert.equal(jsonLine(r).ok, true);
+  });
+});
+
 // ---------------- scan-instructions ----------------
 
 describe('scan-instructions', () => {
@@ -644,5 +830,176 @@ describe('fitness --staged', () => {
     const r = runEngine(['fitness', '--all'], { cwd: dir });
     assert.equal(r.code, 1, out(r));
     assert.ok(out(r).includes('untracked.js'), out(r));
+  });
+});
+
+// ---------------- plan-lint（REQ-079：计划无占位符机械检查） ----------------
+
+describe('plan-lint（REQ-079：DEV-PLAN 占位词与偷懒引用拦截）', () => {
+  test('占位词命中 → exit 1，逐条带 file:line（TBD/TODO 独立成词 + 待补充/待定）', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    // 夹具行号是断言契约的一部分，调整布局必须同步修断言。
+    write(dir, 'DEV-PLAN.md', [
+      '# DEV PLAN', // line 1
+      '', // line 2
+      '- P1-T1 范围 TBD', // line 3：TBD 独立成词
+      '- P1-T2 负责人待定', // line 4：待定
+      '- P1-T3 验收 TODO', // line 5：TODO 独立成词
+      '- P1-T4 状态枚举 Pinned/Decisions/TODO/Done 不算占位（非独立成词放行）', // line 6
+      ''
+    ].join('\n'));
+    gitInitCommit(dir);
+    const r = runAudit('plan-lint.mjs', [], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    const report = jsonLine(r);
+    assert.equal(report.ok, false);
+    const lines = report.findings.filter((f) => f.rule === 'placeholder').map((f) => f.line);
+    assert.deepEqual(lines, [3, 4, 5], `占位词命中行应为 3/4/5，实际：${JSON.stringify(report.findings)}`);
+    for (const f of report.findings) assert.equal(f.file, 'DEV-PLAN.md');
+  });
+
+  test('偷懒引用命中 → exit 1（类似 Task / 同 Task / 同上任务 三形态逐行点名）', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'DEV-PLAN.md', [
+      '# DEV PLAN', // line 1
+      '- P2-T3 错误处理同 Task 2', // line 2
+      '- P2-T4 日志方案类似 Task 1', // line 3
+      '- P2-T5 同上任务', // line 4
+      ''
+    ].join('\n'));
+    gitInitCommit(dir);
+    const r = runAudit('plan-lint.mjs', [], { cwd: dir });
+    assert.equal(r.code, 1, out(r));
+    const findings = jsonLine(r).findings.filter((f) => f.rule === 'lazy-task-reference');
+    assert.deepEqual(findings.map((f) => f.line), [2, 3, 4], `三形态偷懒引用必须逐行点名：${JSON.stringify(findings)}`);
+  });
+
+  test('干净计划 → exit 0 零发现（正规编号依赖引用不误报）', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'DEV-PLAN.md', [
+      '# DEV PLAN',
+      '',
+      '## P1',
+      '',
+      '- P1-T1 实现解析器。Expected: 单测全绿。',
+      '- P1-T2 实现渲染器，依赖 P1-T1 产出的 AST。Expected: 集成测试通过。',
+      ''
+    ].join('\n'));
+    gitInitCommit(dir);
+    const r = runAudit('plan-lint.mjs', [], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    const report = jsonLine(r);
+    assert.equal(report.ok, true);
+    assert.equal(report.findings.length, 0, out(r));
+  });
+
+  test('无 DEV-PLAN.md → exit 3 响亮降级（SKIPPED 不是 PASS，绝不假绿）', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'README.md', '# fixture\n');
+    gitInitCommit(dir);
+    const r = runAudit('plan-lint.mjs', [], { cwd: dir });
+    assert.equal(r.code, 3, out(r));
+    const report = jsonLine(r);
+    assert.equal(report.degraded, true);
+    assert.equal(report.reason, 'no-dev-plan');
+    assert.equal(report.ok, false, '降级绝不允许 ok:true（不假绿）');
+  });
+
+  test('非 git 仓 → exit 3（拒绝猜测）', (t) => {
+    const dir = mkdtemp(t);
+    write(dir, 'DEV-PLAN.md', '# DEV PLAN\n\n- 范围 TBD\n');
+    const r = runAudit('plan-lint.mjs', [], { cwd: dir });
+    assert.equal(r.code, 3, out(r));
+    assert.equal(jsonLine(r).reason, 'not-a-git-repo');
+  });
+
+  test('围栏代码块与行内注释（// 与 <!-- -->）豁免；TODO #N 编号条目交叉引用放行', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'DEV-PLAN.md', [
+      '# DEV PLAN',
+      '',
+      '```',
+      '草稿片段：范围 TBD',
+      '```',
+      '',
+      '- 历史注记 // TODO 当时遗留项，已另行关闭',
+      '- <!-- 待定 --> 正文在注释内豁免',
+      '- P0 已完成：TODO #7 真实仓校准（编号条目交叉引用，非占位）',
+      ''
+    ].join('\n'));
+    gitInitCommit(dir);
+    const r = runAudit('plan-lint.mjs', [], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.equal(jsonLine(r).findings.length, 0, out(r));
+  });
+
+  test('悬空编号引用拦截：TODO #999 无定义 → exit 1 逐行点名；#7 在 progress.md 有定义 → 豁免', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    // 「有定义」口径（写给引擎修复的契约）：被引用编号 #N 必须在 progress.md 中出现过
+    // （含 [#N] 条目形态，Done 条目里的历史提及也算——本仓 DEV-PLAN.md:95 引用的 #7/#9/#10
+    // 均已从 TODO 节关闭，只活在 progress.md 历史条目里，对真仓用例必须保持绿）；
+    // 无 progress.md 时本规则不激活（宁可漏报不误报，既有「TODO #N 豁免」用例的夹具即无
+    // progress.md，必须保持绿）。夹具行号是断言契约的一部分。
+    write(dir, 'progress.md', [
+      '# progress',
+      '',
+      '## TODO',
+      '',
+      '- [P3][OPEN][#7] 真实仓校准',
+      ''
+    ].join('\n'));
+    write(dir, 'DEV-PLAN.md', [
+      '# DEV PLAN', // line 1
+      '', // line 2
+      '- P0 已完成：TODO #7 真实仓校准（progress.md 有定义，豁免）', // line 3
+      '- P1 遗留：TODO #999 补测试（悬空编号引用）', // line 4
+      ''
+    ].join('\n'));
+    gitInitCommit(dir);
+    const r = runAudit('plan-lint.mjs', [], { cwd: dir });
+    assert.equal(r.code, 1, `悬空编号引用必须 exit 1，实际 ${r.code}: ${out(r)}`);
+    const findings = jsonLine(r).findings;
+    assert.ok(findings.some((f) => f.line === 4 && f.excerpt.includes('#999')),
+      `TODO #999 所在行必须被点名：${JSON.stringify(findings)}`);
+    assert.ok(!findings.some((f) => f.line === 3), `TODO #7 有定义必须豁免：${JSON.stringify(findings)}`);
+  });
+
+  test('编号引用全部有定义 → exit 0（豁免语义不回归）', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'progress.md', '# progress\n\n## TODO\n\n- [P3][OPEN][#7] 真实仓校准\n');
+    write(dir, 'DEV-PLAN.md', '# DEV PLAN\n\n- P0 已完成：TODO #7 真实仓校准\n');
+    gitInitCommit(dir);
+    const r = runAudit('plan-lint.mjs', [], { cwd: dir });
+    assert.equal(r.code, 0, out(r));
+    assert.equal(jsonLine(r).findings.length, 0, out(r));
+  });
+
+  test('子目录运行钉根：cwd=子目录时仍 lint 仓根 DEV-PLAN.md，输出 scanRoot=仓根', (t) => {
+    if (!needGit(t)) return;
+    const dir = mkdtemp(t);
+    write(dir, 'DEV-PLAN.md', '# DEV PLAN\n\n- P1-T1 范围 TBD\n');
+    write(dir, 'docs/notes.md', '# docs\n');
+    gitInitCommit(dir);
+    // 契约（trust 回归）：子目录运行时以 cwd 相对路径读 DEV-PLAN.md 会把「仓根有计划」
+    // 误报成 no-dev-plan（假降级），或 lint 到子目录自己的计划（扫描面随 cwd 收缩=假绿）。
+    const r = runAudit('plan-lint.mjs', [], { cwd: path.join(dir, 'docs') });
+    assert.equal(r.code, 1, `子目录运行必须命中仓根 DEV-PLAN.md 的占位词，实际 ${r.code}: ${out(r)}`);
+    const report = jsonLine(r);
+    assert.equal(fs.realpathSync(report.scanRoot), fs.realpathSync(dir), `scanRoot 必须钉在仓根：${report.scanRoot}`);
+    assert.ok(report.findings.some((f) => f.file === 'DEV-PLAN.md' && f.line === 3),
+      `必须命中仓根 DEV-PLAN.md:3：${JSON.stringify(report.findings)}`);
+  });
+
+  test('对真仓：本仓 DEV-PLAN.md 现状必须过检查（exit 0）', () => {
+    const r = runAudit('plan-lint.mjs', [], { cwd: REPO });
+    assert.equal(r.code, 0, out(r));
+    assert.equal(jsonLine(r).ok, true);
   });
 });

@@ -1,6 +1,6 @@
 # kimi-base Product Spec
 
-版本：v3.1.7 · 状态：v3.0 重构进行中（P0-P6 已交付；P7-P10 工程面与 P11 软层并行推进） · 变更史见 `Product-Spec-CHANGELOG.md`
+版本：v3.2.2 · 状态：P12 已交付，全量需求 81 条 active · 变更史见 `Product-Spec-CHANGELOG.md`
 
 ## 1. 定位
 
@@ -192,6 +192,21 @@
   验收：三 skill 的字段级完备性检查（lint）+ 情境检验。
 - REQ-075 skill 工艺与去重：对话型 skill 必须各带 ≥2 个多轮对话示例与反例清单；执行型 skill 必须带反合理化清单（偷懒话术→应对）；回执信封/交接声明/意图路由表/联网优先等重复块必须下沉为单源定义各处引用。
   验收：skills-lint 扩展检查（示例/反例存在性）全绿 + 重复块消除前后 diff 审计。
+
+### v3.0 开发前四阶段深化（P12，源自 other/ 系谱逐行深读 + AI UI 实证调研）
+
+- REQ-076 需求采访工业化：product-spec-builder 必须带 references/question-bank.md（每条目五段：覆盖意图/主问题/追问话术对/接受标准/不接受的答案）；必须有反失败自检清单（讨好/编造/过早收敛/从先验提问/捆绑提问/引导性问题/赞美当数据）；收敛判据必须含边际测试（再问一题会改变做什么吗，不会就停）与不对称原则（缺了会返工的问到底，便宜能补的标 [未知] 放行）；采访必须有主问题预算（简单 ≤8 / 中等 ≤12 / 复杂 ≤15，超 12 题触发收敛审计）；搜索增强双遍（进场前搜竞品带例子质问、生成前按对话再搜技术选型）。
+  验收：资产锚点测试（question-bank 五段结构/自检清单/预算条款存在）+ 情境检验 v2（访谈质量不低于 P11 基线）。
+- REQ-077 界面设计链：当项目涉及界面时，必须具备 design-brief-builder（形态分轨先于视觉/感受翻译表/参考与反参考锚定/二选一定轴禁中间值/明确不问像素清单）与 design-maker（组件先行/状态变体触发规则：有数据→空态、有异步→加载态、有可能失败→错误态/真实内容禁 Lorem ipsum/逐组件截图验证）两个 skill 与 DESIGN.md 模板（token 必须带语义描述+禁令清单给命名替代）；设计优先级链必须是设计稿 > Brief > Spec > 继承先例。
+  验收：两 skill 契约 lint 全绿 + 模板锚点测试 + skills-lint 16→18 全绿。
+- REQ-078 ui-slop 可执行检查：引擎必须提供 UI 审美静态检查（audit 脚本或 fitness 规则，禁 import 引擎）：禁字体（Inter/Roboto 无语义理由）/禁紫蓝渐变 tells/硬编码 hex 无 token 引用/禁用词文案（"Elevate your workflow"类）——命中报 error 带 file:line；规则清单须可随设计演进扩展。
+  验收：红测（含 slop 的前端夹具必中、干净夹具不误报）+ 本仓 audit 电池接线。
+- REQ-079 架构与计划深化：arch-designer 必须有三类决定分离（User Decision 才采访/Architect Decision 自己定/Platform Fact 查官方资料+带核实日期）与威胁模型触发清单（命中即建 THR）；dev-planner 必须有粒度校准数值信号（>5 交付物/>10 文件/>3 不相关功能=太大）、风险前置、无占位符（DEV-PLAN 不得出现占位词表内的词或"类似 Task N"式引用，必须被可执行检查拦截）。
+  验收：plan-lint 类检查红测（占位符必拦）+ arch/dfx 锚点测试。
+- REQ-080 review 机械闸：当项目启用治理时，代码文件被 Edit/Write 后必须置脏标记，Stop 事件在脏标记存在时必须阻断并指引派发 review；评审通过后清脏；三振熔断防死锁（同一清单连拦 3 次第 4 次放行+欠账醒目提示）；feedback 信号检测（用户修正关键词收窄高信号集）命中时注入提示派发 feedback-observer。
+  验收：hook 行为测试（置脏/阻断/清脏/三振/误伤面）全绿。
+- REQ-081 进化与学习补强：feedback 条目评分必须带 evidence 字段（每分一句话依据）；evolution-engine 必须双向扫描（该加的加、该退的退，净规则量往下走）与强制抽象检验（换个产品这条规则还成立吗）；最小干预阶梯（例子 > 规则 > 改 Skill > 建新 Skill）。
+  验收：资产锚点测试 + feedback 引擎 record 对 evidence 字段的校验红测。
 
 ## 6. 非功能需求
 

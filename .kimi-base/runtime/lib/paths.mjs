@@ -18,6 +18,8 @@ export const WAIVERS_FILE = 'waivers.json';
 export const ARCH_TREND_FILE = 'arch-trend.json';
 export const REVIEW_SESSION_FILE = 'review/session.json';
 export const REVIEW_BACKLOG_FILE = 'review-backlog.json';
+// REQ-080 review 机械闸：post-edit 置脏 / Stop 脏闸 / 终审 ACCEPT 清脏 的状态文件。
+export const REVIEW_DIRTY_FILE = 'review-dirty.json';
 export const STRENGTH_STATE_FILE = 'strength.json';
 export const STRENGTH_DECISIONS_FILE = 'strength-decisions.jsonl';
 

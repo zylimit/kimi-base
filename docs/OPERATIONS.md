@@ -138,19 +138,21 @@ node .kimi-base/runtime/kimi-base.mjs install . --hooks   # 或 upgrade . --hook
 
 ### 独立审计脚本（`.kimi-base/audit/`）
 
-五个零依赖 Node 脚本，**禁止 import 引擎**（catalog 中 `audit` 模块声明 `forbiddenDependencies:["engine"]`，`arch check --scan` 机械执法；另有静态测试锁死 `../runtime` 引用）——引擎内部缺陷无法让它们沉默。stdout 单行 JSON + stderr 人类摘要；exit 0/1，非 git 仓 exit 3。
+七个零依赖 Node 脚本，**禁止 import 引擎**（catalog 中 `audit` 模块声明 `forbiddenDependencies:["engine"]`，`arch check --scan` 机械执法；另有静态测试锁死 `../runtime` 引用）——引擎内部缺陷无法让它们沉默。stdout 单行 JSON + stderr 人类摘要；exit 0/1，非 git 仓 exit 3。
 
 | 脚本 | 回答的问题 |
 | --- | --- |
 | `scan-secrets.mjs [--staged]` | 禁入库路径（.env 非 example/密钥材料/凭据目录）被 tracked？文本含凭据形状字面量（PEM/ghp_/sk-/AKIA/通用 password·token 赋值 ≥8 字符）？占位/示例/env 引用放行；`scan-secrets:ignore` 同行抑制留痕 |
 | `scan-instructions.mjs [--staged]` | 指令文件（AGENTS/CLAUDE/SKILL/.cursor 等，不可信输入）含 8 类注入？（端点改写/内嵌凭据/指令推翻/外泄命令/隐瞒用户/隐形字符/教唆绕门禁/读秘密文件）`scan-instructions:ignore` 抑制 |
+| `ui-slop.mjs` | 前端文件含 AI slop UI tell？（REQ-078：禁字体 Inter/Roboto 无语义理由、紫蓝渐变 tell 色族与 Tailwind 坡道类、营销套话文案为 error；硬编码 hex 无 token/变量、毛玻璃无理由、rounded-2xl+shadow-lg 全家桶、emoji 当图标为 warning）规则清单数据驱动在 `ui-slop-rules.json`，随设计演进只改数据；`ui-slop:ignore` 同行/上一行抑制留痕；规则文件缺失/损坏/非法 exit 3，无前端文件 exit 0 + SKIPPED 响亮声明 |
+| `plan-lint.mjs` | DEV-PLAN.md 含占位词或偷懒引用？（REQ-079：占位词表与 spec lint 同源——TBD/TODO 独立成词 + 待补充/待定；`类似 Task`/`同 Task`/「同上任务」式引用把思考外包给编号，一律 exit 1 带 file:line）围栏代码块豁免；行内注释（`//` 前字符非 `:` 起至行尾、同行 `<!-- -->` 区段）豁免；`TODO #N` 编号条目交叉引用不是占位。无 DEV-PLAN.md exit 3 响亮降级（不假绿） |
 | `check-syntax.mjs` | 每个 tracked .mjs/.cjs/.js 都能 `node --check` 通过？ |
 | `manifest.mjs [--check]` | FRAMEWORK-MANIFEST.json 与复制面实况一致？（独立重算 LF 归一化 sha256 + digest，不用引擎代码） |
 | `run-tests.mjs` | Node 20 安全的 `node --test` 启动器（显式文件清单，不依赖 glob 展开）；无测试可跑 exit 3 |
 
 ### 第三道闸（CI）
 
-本仓 `.github/workflows/ci.yml` 即参考实现：selftest → check-syntax → scan-secrets → scan-instructions → manifest --check → run-tests → `dod` → `arch trend --gate`（ubuntu+windows × node 20/22）。采纳者把 `.kimi-base/templates/github-gate.yml` 复制到自己仓的 `.github/workflows/`（installer 不写 `.github`——不越俎代庖）；安装布局 = 源布局，路径无需调整。
+本仓 `.github/workflows/ci.yml` 即参考实现：selftest → check-syntax → scan-secrets → scan-instructions → ui-slop → plan-lint → manifest --check → run-tests → run-eval（regression 套）→ `dod` → `arch trend --gate`（ubuntu+windows × node 20/22）。采纳者把 `.kimi-base/templates/github-gate.yml` 复制到自己仓的 `.github/workflows/`（installer 不写 `.github`——不越俎代庖）；安装布局 = 源布局，路径无需调整。
 
 采纳者模板的两条实证实践（P9 起）：① 每周定时空跑（cron 错开整点，周一 03:17 UTC）——无人提交时依赖/工具链/镜像腐烂也能早发现；② 全部步骤 `continue-on-error` + 末尾「汇总判定」一步收口——四层缺陷压回一轮反馈，汇总显式列出被跳过/降级项（放行 ≠ 全部通过）。GitLab 采纳者用 `.kimi-base/templates/gitlab-gate.yml`（复制为 `.gitlab-ci.yml` 或 include）：与 GitHub 版同语义的十段管线，GitLab script 任一行非零即中止故改为捕获退出码 + 末尾汇总收口；GitLab 不在 YAML 写 cron，周检到 CI/CD → Schedules 建 schedule（rules 已放行 schedule 来源）。
 

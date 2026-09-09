@@ -28,6 +28,45 @@ const FRONTMATTER_KEYS = ['type', 'description', 'created', 'updated', 'occurren
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+// REQ-081：效能评分四维度。带分数条目必须附 evidence（每分一句话依据）——没有依据的分数是观点不是证据。
+export const SCORE_DIMENSIONS = Object.freeze(['accuracy', 'coverage', 'efficiency', 'satisfaction']);
+
+// --scores/--evidence 均为内联 JSON 对象字符串；scores 的每个维度都必须在 evidence 里有一句话依据。
+function parseScores(raw) {
+  let value;
+  try {
+    value = JSON.parse(String(raw));
+  } catch {
+    throw usageError('--scores 必须是内联 JSON 对象（如 \'{"accuracy":4,...}\'）');
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw usageError('--scores 必须是 JSON 对象');
+  for (const [dimension, score] of Object.entries(value)) {
+    if (!SCORE_DIMENSIONS.includes(dimension)) {
+      throw usageError(`非法评分维度：${dimension}（合法集：${SCORE_DIMENSIONS.join(' / ')}）`);
+    }
+    if (!Number.isInteger(score) || score < 1 || score > 5) {
+      throw usageError(`scores.${dimension} 必须是 1-5 的整数，实得 ${JSON.stringify(score)}`);
+    }
+  }
+  if (!Object.keys(value).length) throw usageError('--scores 不能为空对象');
+  return value;
+}
+
+function parseScoreEvidence(raw, scores) {
+  let value;
+  try {
+    value = JSON.parse(String(raw));
+  } catch {
+    throw usageError('--evidence 必须是内联 JSON 对象（如 \'{"accuracy":"零修正",...}\'）');
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw usageError('--evidence 必须是 JSON 对象');
+  const missing = Object.keys(scores).filter((dimension) => typeof value[dimension] !== 'string' || !value[dimension].trim());
+  if (missing.length) {
+    throw usageError(`带分数条目必须附 evidence（每分一句话依据）：缺维度 ${missing.join(' / ')} 的依据`);
+  }
+  return Object.fromEntries(Object.entries(value).map(([dimension, text]) => [dimension, String(text).trim()]));
+}
+
 // topic 归一化：trim + 小写 + 连续空白/下划线折叠为单连字符 + 连续连字符折叠为单连字符
 // （"Flaky Test"、"flaky--test"、"flaky-test" 是同主题）；同主题判定 = 归一化后字符串相等。
 // 归一化结果即条目文件名，故必须同时是安全文件名（小写字母/数字/连字符）。
@@ -180,7 +219,7 @@ function nextOccurrences(raw) {
 // feedback record：同主题（归一化判定）去重 occurrences+1、updated 刷新、INDEX 同步。
 // 读-改-写全程在跨进程文件锁内（并发 record 不丢计数）；先校验全部输入再落盘，
 // INDEX 与条目在同一把锁内原子推进——命令失败即未计数，可安全重试。
-export async function recordFeedback(ctx, { topic, type, description }) {
+export async function recordFeedback(ctx, { topic, type, description, scores, evidence }) {
   for (const [name, value] of [['topic', topic], ['type', type], ['description', description]]) {
     if (value === undefined || value === true || String(value).trim() === '') {
       throw usageError(`feedback record 需要 --${name} <值>（record --topic <主题> --type <五类之一> --description <描述>）`);
@@ -190,6 +229,13 @@ export async function recordFeedback(ctx, { topic, type, description }) {
   if (!FEEDBACK_TYPES.includes(typeValue)) {
     throw usageError(`非法 feedback type：${typeValue}；合法集（五类信号）：${FEEDBACK_TYPES.join(' / ')}`);
   }
+  // REQ-081：先校验全部输入再落盘——带分数条目必须附 evidence，无分数条目不接受 evidence。
+  const parsedScores = scores === undefined ? null : parseScores(scores);
+  if (evidence !== undefined && parsedScores === null) {
+    throw usageError('--evidence 只能与 --scores 一起使用（无分数条目不携带评分依据）');
+  }
+  const parsedEvidence = parsedScores === null ? null : parseScoreEvidence(evidence ?? '', parsedScores);
+  const scoreFields = parsedScores === null ? {} : { scores: JSON.stringify(parsedScores), scores_evidence: JSON.stringify(parsedEvidence) };
   const normalized = normalizeTopic(topic);
   const date = today();
   const desc = String(description).replace(/\s+/g, ' ').trim();
@@ -207,11 +253,11 @@ export async function recordFeedback(ctx, { topic, type, description }) {
       const logLine = `- ${date}：${desc}`;
       const trimmed = existing.body.trimEnd();
       const nextBody = /## 出现记录/.test(trimmed) ? `${trimmed}\n${logLine}\n` : `${trimmed}\n\n## 出现记录\n${logLine}\n`;
-      await atomicWrite(absolute, serializeEntry({ ...existing.fm, occurrences: String(occurrences), updated: date }, nextBody));
+      await atomicWrite(absolute, serializeEntry({ ...existing.fm, occurrences: String(occurrences), updated: date, ...scoreFields }, nextBody));
     } else {
       occurrences = 1;
       created = true;
-      const fm = { type: typeValue, description: desc, created: date, updated: date, occurrences: '1', graduated: 'false', skipped: 'false' };
+      const fm = { type: typeValue, description: desc, created: date, updated: date, occurrences: '1', graduated: 'false', skipped: 'false', ...scoreFields };
       const body = `\n## 信号\n${desc}\n\n## 教训\n（待总结——由 propose 提议、人工确认后毕业）\n\n## 出现记录\n- ${date}：${desc}\n`;
       await atomicWrite(absolute, serializeEntry(fm, body));
     }

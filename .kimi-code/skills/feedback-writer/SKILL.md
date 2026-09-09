@@ -25,6 +25,7 @@ whenToUse: 由 feedback-observer 子代理在识别到反馈信号后加载
    - **效率**——流程是否顺畅？5: 一次通过 / 4: 1 次澄清 / 3: 2-3 次来回 / 2: 多次来回 / 1: 卡死
    - **满意度**——用户接受程度？5: 主动表达满意 / 4: 无负面评价 / 3: 提了修改意见 / 2: 要求大幅修改 / 1: 否定产出
    - **反膨胀**：有修正 → 精准度 ≤3；临时发明 → 覆盖度 ≤3；2+ 次来回 → 效率 ≤3；有修改意见 → 满意度 ≤3
+   - **evidence 必填（REQ-081）**：每个分数必须带一句话依据（写进 `scores_evidence`，与 `scores` 逐维对应）；没有依据的分数是观点不是证据。`feedback record --scores ... --evidence ...` 对此有机械校验：带分数条目缺任一维度依据即拒绝（exit 1），无分数条目不得携带 evidence。
 
 **判断标准**：只有确实观察到信号时才记录。宁可漏记，不可滥记。
 
@@ -63,6 +64,7 @@ title: <一句话主题>
 source_skill: <来源 Skill 名，或 N/A>
 occurrences: 1
 scores: {accuracy: <1-5>, coverage: <1-5>, efficiency: <1-5>, satisfaction: <1-5>}   # 仅效能评估类
+scores_evidence: {accuracy: "<一句话依据>", coverage: "...", efficiency: "...", satisfaction: "..."}   # 与 scores 逐维配套必填（REQ-081）
 private: false        # true = 私密 topic，不进发布包
 graduated: false      # evolution-engine 毕业后由主 Agent 标 true
 skipped: false        # 用户跳过提议后由主 Agent 标 true

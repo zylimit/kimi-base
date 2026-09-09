@@ -1074,6 +1074,77 @@ describe('资产锚点：内容面（REQ-070/071/075）', () => {
       assert.ok(calibrate[1].includes(kw), `定标方法缺关键词「${kw}」`);
     }
   });
+
+  // REQ-076 psb 追问工艺：references/question-bank.md 五段结构 + SKILL.md 三新节 + 收敛判据
+  test('REQ-076：psb question-bank 含五段结构关键词；SKILL.md 含反失败自检/主问题预算/搜索增强双遍节与边际测试/不对称原则', () => {
+    const bank = readRepo('.kimi-code/skills/product-spec-builder/references/question-bank.md');
+    for (const kw of ['覆盖意图', '主问题', '接受标准', '不接受的答案']) {
+      assert.ok(bank.includes(kw), `question-bank.md 缺五段结构关键词「${kw}」`);
+    }
+    const text = readRepo('.kimi-code/skills/product-spec-builder/SKILL.md');
+    for (const section of ['反失败自检', '主问题预算', '搜索增强双遍']) {
+      assert.match(text, new RegExp(`^##+ .*${section}`, 'm'), `psb 缺「${section}」节标题`);
+    }
+    for (const kw of ['边际测试', '不对称原则']) {
+      assert.ok(text.includes(kw), `psb 收敛判据缺「${kw}」`);
+    }
+  });
+
+  // REQ-077 设计双 skill：存在且 frontmatter 合规（name==目录名、description 必填，同 REQ-008 口径）；DESIGN.md 模板与路由
+  test('REQ-077：design-brief-builder/design-maker frontmatter 合规；DESIGN.md 含 $description 与禁令清单；intent-routing.md 含两 skill 路由', () => {
+    for (const skill of ['design-brief-builder', 'design-maker']) {
+      const text = readRepo(`.kimi-code/skills/${skill}/SKILL.md`);
+      const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      assert.ok(m, `${skill} 必须有 frontmatter`);
+      const name = m[1].match(/^name:\s*(.+)$/m)?.[1]?.trim();
+      const description = m[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
+      assert.equal(name, skill, `${skill} name 必须等于目录名`);
+      assert.ok(description, `${skill} 缺 description`);
+    }
+    const tpl = readRepo('.kimi-base/templates/DESIGN.md');
+    assert.ok(tpl.includes('$description'), 'DESIGN.md 缺 $description 语义');
+    assert.match(tpl, /禁令清单/, 'DESIGN.md 缺禁令清单');
+    const routing = readRepo('.kimi-base/rules/intent-routing.md');
+    for (const skill of ['design-brief-builder', 'design-maker']) {
+      assert.ok(routing.includes(skill), `intent-routing.md 缺 ${skill} 路由`);
+    }
+  });
+
+  // REQ-078 UI-slop 门禁：审计脚本与规则文件存在，两个 CI 模板各含 uislop 步骤
+  test('REQ-078：audit/ui-slop.mjs 与 ui-slop-rules.json 存在；github/gitlab 两个 CI 模板含 ui-slop 步骤', () => {
+    for (const rel of ['.kimi-base/audit/ui-slop.mjs', '.kimi-base/audit/ui-slop-rules.json']) {
+      assert.ok(fs.existsSync(path.join(REPO, rel)), `缺 ${rel}`);
+    }
+    for (const rel of ['.kimi-base/templates/github-gate.yml', '.kimi-base/templates/gitlab-gate.yml']) {
+      assert.match(readRepo(rel), /ui-slop\.mjs/, `${rel} 缺 ui-slop 步骤`);
+    }
+  });
+
+  // REQ-079 设计/规划工艺加固：arch-designer 两新节；dfx-designer AI 专项；dev-planner 粒度数值信号与排除清单
+  test('REQ-079：arch-designer 含三类决定分离与威胁模型触发清单；dfx-designer 含 AI 功能专项；dev-planner 含粒度数值信号与「不需要分析」排除清单', () => {
+    const arch = readRepo('.kimi-code/skills/arch-designer/SKILL.md');
+    assert.match(arch, /^## .*三类决定分离/m, 'arch-designer 缺「三类决定分离」节');
+    assert.match(arch, /^## .*威胁模型触发清单/m, 'arch-designer 缺「威胁模型触发清单」节');
+    assert.match(readRepo('.kimi-code/skills/dfx-designer/SKILL.md'), /^## .*AI 功能专项/m, 'dfx-designer 缺「AI 功能专项」节');
+    const planner = readRepo('.kimi-code/skills/dev-planner/SKILL.md');
+    assert.match(planner, /数值信号/, 'dev-planner 缺粒度数值信号');
+    assert.match(planner, /不需要分析/, 'dev-planner 缺「不需要分析」排除清单');
+  });
+
+  // REQ-080 编辑后脏区审查钩子：插件注册 post-edit hook，runtime 侧 review-dirty 模块存在
+  test('REQ-080：kimi.plugin.json 注册 post-edit hook；runtime/lib/review-dirty.mjs 存在', () => {
+    assert.match(readRepo('kimi.plugin.json'), /post-edit/, 'kimi.plugin.json 未注册 post-edit hook');
+    assert.ok(fs.existsSync(path.join(REPO, '.kimi-base/runtime/lib/review-dirty.mjs')), '缺 .kimi-base/runtime/lib/review-dirty.mjs');
+  });
+
+  // REQ-081 反馈评分证据与进化三原则：feedback-writer scores_evidence；evolution-engine 三新节
+  test('REQ-081：feedback-writer 含 scores_evidence；evolution-engine 含双向扫描/强制抽象/最小干预阶梯节', () => {
+    assert.ok(readRepo('.kimi-code/skills/feedback-writer/SKILL.md').includes('scores_evidence'), 'feedback-writer 缺 scores_evidence');
+    const evo = readRepo('.kimi-code/skills/evolution-engine/SKILL.md');
+    for (const section of ['双向扫描', '强制抽象', '最小干预阶梯']) {
+      assert.match(evo, new RegExp(`^##+ .*${section}`, 'm'), `evolution-engine 缺「${section}」节标题`);
+    }
+  });
 });
 
 // ---------------- CI 模板锚点（P9：CI 发布面扩展，轻量内容面） ----------------

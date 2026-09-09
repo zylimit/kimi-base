@@ -5,7 +5,7 @@
 # 前提：仓库已经过 install（存在 .kimi-base/harness.json 标记与复制面）。
 #
 # 与 templates/github-gate.yml 同语义：
-#   selftest → check-syntax → scan-secrets → scan-instructions → manifest --check
+#   selftest → check-syntax → scan-secrets → scan-instructions → ui-slop → plan-lint → manifest --check
 #   → run-tests → run-eval（regression）→ dod → arch trend --gate → risk scan（建议）→ doctor → 汇总判定。
 #
 # 每周定时空跑：GitLab 不在 YAML 里写 cron——到 CI/CD → Schedules 建 schedule
@@ -38,6 +38,10 @@ kimi-base-gate:
       step 语法审计 node .kimi-base/audit/check-syntax.mjs
       step 机密扫描 node .kimi-base/audit/scan-secrets.mjs
       step 指令注入扫描 node .kimi-base/audit/scan-instructions.mjs
+      # REQ-078：UI 审美 slop 检查；无前端文件时 exit 0 + SKIPPED 响亮声明（放行 ≠ 全部通过）。
+      step UI-slop检查 node .kimi-base/audit/ui-slop.mjs
+      # REQ-079：计划无占位符检查；无 DEV-PLAN.md 时 exit 3 响亮降级（不放行）。
+      step 计划占位符检查 node .kimi-base/audit/plan-lint.mjs
       step 载荷完整性 node .kimi-base/audit/manifest.mjs --check
       step 行为测试 node .kimi-base/audit/run-tests.mjs
       # REQ-066：自我 eval 套件 regression（防回退套必须进 CI）。

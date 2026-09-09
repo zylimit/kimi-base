@@ -32,10 +32,10 @@ export const SECURITY_DEFAULTS = Object.freeze({
   allowedSecretTemplates: ['.env.example', '.env.sample', '.env.template']
 });
 
-// 修正信号关键词默认值（中英双语），canonical 覆盖位是 feedback.signalKeywords
-//（hooks.correctionKeywords 为废弃别名，仍可读）。
+// 修正信号关键词默认值（中英双语，收窄的高信号集——"能不能/为什么"这类宽词不进表），
+// canonical 覆盖位是 feedback.signalKeywords（hooks.correctionKeywords 为废弃别名，仍可读）。
 const CORRECTION_KEYWORDS_DEFAULT = Object.freeze([
-  '不对', '错了', '不是这样', '重来', '你搞错了', '别这样', '以后不要', '不是我要的',
+  '不对', '错了', '不是这样', '重来', '重做', '应该是', '你搞错了', '别这样', '以后不要', '不是我要的',
   'wrong', 'that\'s wrong', 'not what i', 'redo', 'do not do that again', 'try again'
 ]);
 

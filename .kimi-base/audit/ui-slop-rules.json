@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "description": "ui-slop 规则清单（REQ-078）：数据驱动，随设计演进只改本文件、不改脚本。每条规则 {id, severity, pattern, flags?, message, exempt?, exemptFiles?}；exempt 为行级豁免正则（如 token/变量引用行），exemptFiles 为文件级豁免正则（匹配仓库相对路径，如 token 定义文件）；同行或上一行注释 ui-slop:ignore 为留痕抑制（语义理由必须写在注释里）。",
+  "suppression": "ui-slop:ignore",
+  "extensions": [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte", ".astro", ".html", ".css", ".scss", ".less"],
+  "exclude": [
+    "\\.(test|spec)\\.[cm]?[jt]sx?$",
+    "(^|/)__tests__/",
+    "(^|/)node_modules/",
+    "\\.min\\.[cm]?js$",
+    "(^|/)dist/",
+    "(^|/)build/"
+  ],
+  "rules": [
+    {
+      "id": "banned-font",
+      "severity": "error",
+      "pattern": "(font-?family|fontFamily)[^\\n;)}]*\\b(Inter|Roboto)\\b|fonts\\.googleapis\\.com[^\\n'\")]*\\b(Inter|Roboto)\\b|\\bfont-(inter|roboto)\\b",
+      "flags": "i",
+      "message": "禁字体 tell（Inter/Roboto 无语义理由）：AI slop 默认字体；如经设计拍板，用 ui-slop:ignore 注释写明语义理由"
+    },
+    {
+      "id": "purple-gradient-tells",
+      "severity": "error",
+      "pattern": "#(6366f1|4f46e5|818cf8|4338ca|a5b4fc|312e81|8b5cf6|7c3aed|a78bfa|6d28d9|5b21b6|a855f7|9333ea|c084fc|7e22ce|581c87)\\b",
+      "flags": "i",
+      "message": "紫蓝渐变 tell 色族（indigo/violet/purple 系十六进制）：AI slop 指纹色；品牌确需此色族用 ui-slop:ignore 留痕拍板依据"
+    },
+    {
+      "id": "tailwind-purple-ramp",
+      "severity": "error",
+      "pattern": "\\b(from|via|to)-(indigo|violet|purple|fuchsia)-[0-9]{3}\\b",
+      "flags": "i",
+      "message": "Tailwind 紫蓝渐变坡道类（from-indigo/to-purple 式）：slop hero 渐变指纹"
+    },
+    {
+      "id": "marketing-copy",
+      "severity": "error",
+      "pattern": "\\b(elevate your|supercharge|unleash (your|the)|revolutioni[sz]e|seamless(ly)?|delightful|cutting-edge|next-generation|game-chang\\w*)\\b|无缝(集成|体验|衔接|连接)|赋能|一站式",
+      "flags": "i",
+      "message": "营销套话文案（Elevate your workflow / Supercharge / 无缝 / 赋能 类）：界面文案写对象做什么，不写形容词"
+    },
+    {
+      "id": "hardcoded-hex",
+      "severity": "warning",
+      "pattern": "#[0-9a-f]{8}\\b|#[0-9a-f]{6}\\b|#[0-9a-f]{4}\\b|#[0-9a-f]{3}\\b",
+      "flags": "i",
+      "exempt": "var\\(|--[\\w-]+\\s*:|\\$[\\w-]+\\s*:|tokens?\\.",
+      "exemptFiles": "(tailwind|theme|tokens?|colors?|palette)(\\.config)?\\.[cm]?[jt]s$|\\.tokens\\.json$",
+      "message": "硬编码 hex 未经 token/变量引用：颜色应走设计 token（var(--x)/$var/tokens.x 或 token 定义文件），便于换肤与审计"
+    },
+    {
+      "id": "backdrop-blur-unjustified",
+      "severity": "warning",
+      "pattern": "\\bbackdrop-blur\\b",
+      "flags": "i",
+      "message": "毛玻璃反射性使用（backdrop-blur 无设计理由）：确认遮挡场景确实需要，否则移除；确需则用 ui-slop:ignore 留痕"
+    },
+    {
+      "id": "slop-card-combo",
+      "severity": "warning",
+      "pattern": "rounded-2xl[^\\n\"']*shadow-lg|shadow-lg[^\\n\"']*rounded-2xl",
+      "flags": "i",
+      "message": "rounded-2xl + shadow-lg 全家桶组合：slop 卡片指纹；卡片语言应由设计 token 定义而非类名堆叠"
+    },
+    {
+      "id": "emoji-as-icon",
+      "severity": "warning",
+      "pattern": "(^\\s*(?:[-*+]|\\d+\\.)\\s+|<li[^>]*>\\s*)\\p{Extended_Pictographic}",
+      "flags": "u",
+      "message": "emoji 当列表图标：图标走图标系统（svg/字体图标），emoji 不承载界面语义"
+    }
+  ]
+}

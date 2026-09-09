@@ -59,6 +59,17 @@ jobs:
         id: instructions
         continue-on-error: true
         run: node .kimi-base/audit/scan-instructions.mjs
+      # REQ-078：UI 审美 slop 检查；无前端文件时 exit 0 + SKIPPED 响亮声明（放行 ≠ 全部通过）。
+      - name: UI slop 检查（独立审计）
+        id: uislop
+        continue-on-error: true
+        run: node .kimi-base/audit/ui-slop.mjs
+      # REQ-079：计划无占位符检查（DEV-PLAN.md 占位词与"类似 Task N"式偷懒引用）；
+      # 无 DEV-PLAN.md 时 exit 3 响亮降级（不放行）。
+      - name: 计划占位符检查（独立审计）
+        id: planlint
+        continue-on-error: true
+        run: node .kimi-base/audit/plan-lint.mjs
       - name: 载荷完整性（独立审计）
         id: manifest
         continue-on-error: true
@@ -102,6 +113,8 @@ jobs:
           SYNTAX: ${{ steps.syntax.outcome }}
           SECRETS: ${{ steps.secrets.outcome }}
           INSTRUCTIONS: ${{ steps.instructions.outcome }}
+          UISLOP: ${{ steps.uislop.outcome }}
+          PLANLINT: ${{ steps.planlint.outcome }}
           MANIFEST: ${{ steps.manifest.outcome }}
           TESTS: ${{ steps.tests.outcome }}
           EVAL: ${{ steps.eval.outcome }}
@@ -127,6 +140,8 @@ jobs:
           report 语法审计 "$SYNTAX" blocking
           report 机密扫描 "$SECRETS" blocking
           report 指令注入扫描 "$INSTRUCTIONS" blocking
+          report UI-slop检查 "$UISLOP" blocking
+          report 计划占位符检查 "$PLANLINT" blocking
           report 载荷完整性 "$MANIFEST" blocking
           report 行为测试 "$TESTS" blocking
           report 自我eval-regression "$EVAL" blocking

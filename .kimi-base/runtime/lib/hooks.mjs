@@ -14,6 +14,7 @@ import { readLedgerEntries } from './ledger.mjs';
 import { invariantsDigest } from './memory.mjs';
 import { completionGate } from './quality.mjs';
 import { readState, updateState, writeState } from './state.mjs';
+import { dirtyCandidate, isCodePath, markDirty, pruneDirty } from './review-dirty.mjs';
 import { getActiveTask, prewriteReconcile } from './tasks.mjs';
 
 async function readStdinJson() {
@@ -158,8 +159,21 @@ async function hookStop(ctx) {
     return;
   }
   const changed = fingerprint.paths;
+  // REQ-080 review 机械闸：脏标记 ∩ 当前变更集 = 未经评审的代码改动。
+  // 已提交/已还原的文件剪枝落盘（陈旧标记不得永久误拦；工作树干净时即清空）。
+  // 评审 W3：剪枝失败不静默吞——stderr + gate-log 留痕后按无脏标记继续（同 hookPreWrite 降级先例）。
+  let unreviewed = [];
+  try {
+    unreviewed = await pruneDirty(ctx, changed);
+  } catch (error) {
+    process.stderr.write(`kimi-base 警告：review 脏清单剪枝失败（${error.message}）——本次 Stop 按无脏标记继续，评审闸可能漏拦\n`);
+    await appendGateLog(ctx, { kind: 'hook:stop', rule: 'dirty-prune-failed', reason: `脏清单剪枝失败：${error.message}`, decision: 'warn', detail: '' }).catch(() => {});
+  }
   if (!changed.length) return; // 无代码改动，不拦
   const problems = [];
+  if (unreviewed.length) {
+    problems.push(`代码改动未经评审（${unreviewed.join('、')}）：派发 review（review start → blue → lens → verdict），终审 ACCEPT 自动清脏`);
+  }
   const ledger = await readLedgerEntries(ctx);
   const freshReceipts = ledger.entries.filter((entry) => !entry.__corrupt && entry.kind === 'verification' && entry.fingerprint === fingerprint.fingerprint);
   if (!freshReceipts.length) problems.push('缺当前指纹下的 fresh receipt（先跑 gate）');
@@ -188,7 +202,25 @@ function hookPromptSubmit(ctx, payload) {
   const lowered = prompt.toLowerCase();
   const hit = ctx.hooks.correctionKeywords.find((keyword) => lowered.includes(String(keyword).toLowerCase()));
   if (!hit) return;
-  hookSay(ctx, `kimi-base：检测到用户修正信号（"${hit}"）。请先处理诉求；若确认为 AI 行为问题，按 feedback 流程去重记录（occurrences+1），不要静默略过。`);
+  hookSay(ctx, `kimi-base：检测到用户修正信号（"${hit}"）。请先处理诉求；若确认为 AI 行为问题，派发 feedback-observer 子代理按 feedback 流程去重记录（occurrences+1），不要静默略过。`);
+}
+
+// REQ-080 review 机械闸置脏端：PostToolUse(Edit/Write) 观察型事件（宿主忽略返回值，永不阻断）。
+// 代码文件（扩展名白名单）且仓内、非 .kimi-base/.git → 置脏；其余静默。stdout 不输出
+// （观察型 hook 的 stdout 不进模型上下文，且置脏是账本动作无需告知）。
+async function hookPostEdit(ctx, payload) {
+  const candidates = writeToolPaths(payload.tool_input);
+  if (!candidates.length) return;
+  const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : ctx.root;
+  const relatives = [...new Set(candidates.map((candidate) => dirtyCandidate(ctx.root, cwd, candidate)).filter(Boolean))].filter(isCodePath);
+  if (!relatives.length) return;
+  // 评审 W3：观察型事件永不阻断，但置脏失败不静默吞——stderr + gate-log 留痕（失败可见）。
+  try {
+    await markDirty(ctx, relatives, typeof payload.tool_name === 'string' ? payload.tool_name : null);
+  } catch (error) {
+    process.stderr.write(`kimi-base 警告：post-edit 置脏失败（${error.message}）——本次代码改动未进脏清单，Stop 评审闸可能漏拦\n`);
+    await appendGateLog(ctx, { kind: 'hook:post-edit', rule: 'dirty-mark-failed', reason: `置脏失败：${error.message}`, decision: 'warn', detail: relatives.join(',') }).catch(() => {});
+  }
 }
 
 function hookSubagentStop(ctx) {
@@ -232,14 +264,19 @@ export async function dispatchHook(event) {
   const root = await findProjectRoot(cwd);
   if (!root) return;
   const ctx = await loadContext(root);
+  // 评审修复轮：宿主 hook 超时（post-edit 10s / stop 10s）必须大于引擎锁等待上限，
+  // 否则锁竞争时进程被宿主强杀，降级留痕路径（stderr + gate-log）永远来不及执行——
+  // 钩子里的锁等待封顶 3s，超时走 LOCK_TIMEOUT 降级留痕而不是被强杀。
+  ctx.locks = { ...ctx.locks, timeoutMs: Math.min(ctx.locks.timeoutMs, 3000) };
   switch (event) {
     case 'pre-tool-use-bash': return hookPreToolUseBash(ctx, payload);
     case 'pre-write': return hookPreWrite(ctx, payload);
+    case 'post-edit': return hookPostEdit(ctx, payload);
     case 'stop': return hookStop(ctx);
     case 'prompt-submit': return hookPromptSubmit(ctx, payload);
     case 'subagent-stop': return hookSubagentStop(ctx);
     case 'pre-compact': return hookPreCompact(ctx);
     case 'session-start': return hookSessionStart(ctx, payload);
-    default: throw usageError(`未知 hook 事件：${event}（可选 pre-tool-use-bash/pre-write/stop/prompt-submit/subagent-stop/pre-compact/session-start）`);
+    default: throw usageError(`未知 hook 事件：${event}（可选 pre-tool-use-bash/pre-write/post-edit/stop/prompt-submit/subagent-stop/pre-compact/session-start）`);
   }
 }

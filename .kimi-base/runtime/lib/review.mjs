@@ -8,14 +8,17 @@
 
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import process from 'node:process';
 import { archCheckRun } from './arch.mjs';
 import { assessBudget } from './budget.mjs';
 import { TIER_RANK, analyzeImpact, loadCatalog } from './catalog.mjs';
 import { HarnessError, atomicWrite, boundedText, contentHashOf, degradedError, nowIso, sha256, staleError, toPosix, usageError } from './core.mjs';
 import { runFitness } from './fitness.mjs';
 import { changedPaths, git, gitFingerprint, requireGit, splitZero } from './git.mjs';
+import { appendGateLog } from './hygiene.mjs';
 import { appendLedgerRecord, writeReceiptFile } from './ledger.mjs';
 import { REVIEW_BACKLOG_FILE, REVIEW_SESSION_FILE } from './paths.mjs';
+import { clearDirtyForPaths } from './review-dirty.mjs';
 import { readState, stateFile, updateState, writeState } from './state.mjs';
 import { loadStrengthConfig, resolveStrength } from './strength.mjs';
 import { getActiveTask } from './tasks.mjs';
@@ -461,6 +464,18 @@ export async function reviewVerdict(ctx, options = {}) {
     ...(selfReview.length ? { selfReview } : {})
   };
   await writeState(ctx, REVIEW_SESSION_FILE, session);
+  // REQ-080 机械闸清脏：终审 ACCEPT 清掉本会话范围内的脏标记；FIX_REQUIRED 等拒判不清——
+  // 清脏只由裁决触发，防"自报已评审"。清脏失败不拖死裁决（残余脏标记会被 Stop 继续拦，
+  // 方向安全），但绝不静默吞（评审修复轮 trust）：stderr + gate-log 留痕，
+  // 让"ACCEPT 了还拦"可排障（同 hooks 侧置脏/剪枝失败的留痕先例）。
+  if (verdict === 'ACCEPT' && final) {
+    try {
+      await clearDirtyForPaths(ctx, session.scope.paths);
+    } catch (error) {
+      process.stderr.write(`kimi-base 警告：终审 ACCEPT 清脏失败（${error.message}）——脏标记残留，Stop 会继续按未评审拦截\n`);
+      await appendGateLog(ctx, { kind: 'review', rule: 'dirty-clear-failed', reason: `终审清脏失败：${error.message}`, decision: 'warn', detail: session.scope.paths.join(',') }).catch(() => {});
+    }
+  }
   let receipt = null;
   if (verdict === 'ACCEPT' && final) {
     const fingerprint = await gitFingerprint(ctx);

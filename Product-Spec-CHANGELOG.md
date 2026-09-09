@@ -1,5 +1,35 @@
 # Product Spec 变更日志
 
+## v3.2.2（2026-09-10）P12 激活：REQ-076~079
+
+### 变更
+
+- REQ-076（需求采访工业化）/ REQ-077（界面设计链）/ REQ-078（ui-slop 可执行检查）/ REQ-079（架构与计划深化+plan-lint）摘 planned(P12) 标记——验收证据：资产锚点测试（tests/spec.test.mjs）+ ui-slop/plan-lint 红测全绿 + 设计采访情境检验 v2（/tmp/p11-eval/REPORT-v2.md：形态先行/感受翻译/反参考/状态覆盖四维显著优于裸指令；发现的两个缺口已回填 skill）。
+- 版本号 v3.2.1 → v3.2.2。
+
+## v3.2.1（2026-09-10）P12 激活：REQ-080 review 机械闸 + REQ-081 进化补强
+
+### 为什么改
+
+REQ-080/081 落地：review 机械闸（post-edit 置脏 → Stop 脏闸 → 终审 ACCEPT 清脏 → 三振熔断）与进化补强（评分 evidence 强制 + 双向扫描/强制抽象/最小干预阶梯）。按 REQ-067 机制摘 planned 标记。
+
+### 变更
+
+- REQ-080（review 机械闸）摘 planned(P12) 标记：新增 lib/review-dirty.mjs（脏标记状态单源：扩展名白名单判定/仓内归一/mark/prune/clear）+ hook `post-edit`（PostToolUse Edit/Write 观察型事件，置脏 state/review-dirty.json，宿主忽略返回值故永不阻断、stdout 不进模型上下文）+ hookStop 脏闸（脏标记 ∩ 当前变更集 = 未评审改动 → exit 2 指引派发 review；已提交/已还原文件剪枝防陈旧误拦；同一阻断清单并入既有保险丝键，连拦 stopMaxBlocks 次后放行+stop-fuse-release 欠账留痕）+ review.mjs 终审 ACCEPT 按会话范围清脏（FIX_REQUIRED 不清）+ kimi.plugin.json 注册 PostToolUse + prompt-submit 提示点名派发 feedback-observer + 修正词表补「应该是/重做」（收窄高信号集，「能不能/为什么」不进表）。宿主能力核实（官方 hooks 文档）：PostToolUse 存在且观察型（fire-and-forget）、Stop/UserPromptSubmit 可阻断、插件 manifest hooks 与全局 [[hooks]] 同事件面。
+- REQ-081（进化与学习补强）摘 planned(P12) 标记：feedback record 增 --scores/--evidence（内联 JSON；四维度 1-5 整数；带分数条目缺任一维度依据 exit 1 且不落盘，无分数条目拒收 evidence；flag 循 CONTRACT_FLAG_EXTENSIONS 先例单列，不扰动 REQ-056 测试锁定表）；feedback-writer 模板与评分节补 scores_evidence 逐维必填；evolution-engine SKILL 补双向扫描（加与退、净规则量往下走）/强制抽象检验（换个产品还成立吗，不成立落项目层不进框架层）/最小干预阶梯（例子 > 规则 > 改 Skill > 建新 Skill，须声明更低一级为何不够）三节。
+- 版本号 v3.2.0 → v3.2.1。
+
+## v3.2.0（2026-09-10）P12 立项：开发前四阶段深化（REQ-076~081）
+
+### 为什么改
+
+用户指令：深读 other/ 系谱（毒舌 PM 5.0 双版本/毒蛇 4.0+3.0/插件经理三版本，逐行）+ AI 界面设计实证调研，极致提升需求分析/界面设计/架构设计/DFX 四个开发前阶段。四份研究报告取证：毒舌 5.0 的访谈工业化（question-bank 五段/反失败自检/完成度三判据/双遍搜索）、插件经理的采访预算与状态机、design-brief/design-maker 双件套（我们的真空地带）、AI slop 的可检测性与外部评审实证（+17.8% vs 自评 +10.8%、多维 rubric 69.5% 一致率）。
+
+### 变更
+
+- 新增「v3.0 开发前四阶段深化」小节：REQ-076 需求采访工业化 / REQ-077 界面设计链（新）/ REQ-078 ui-slop 可执行检查 / REQ-079 架构与计划深化 / REQ-080 review 机械闸 / REQ-081 进化与学习补强。全部 planned(P12)。
+- 版本号 v3.1.7 → v3.2.0。
+
 ## v3.1.7（2026-09-08）P10 激活：REQ-066 自我 eval 套件
 
 ### 为什么改

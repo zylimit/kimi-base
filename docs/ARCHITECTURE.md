@@ -16,7 +16,7 @@
 ```
 ┌─ 宪法层 ── 项目根 AGENTS.md（≤150 行稳定不变量 + rules/ 指针）
 ├─ 宿主层 ── kimi.plugin.json：hooks(7) / commands(/kimi-base:*) / sessionStart skill
-│            .kimi-code/agents/*.md（8 角色）  .kimi-code/skills/*/SKILL.md（16 工作流）
+│            .kimi-code/agents/*.md（8 角色）  .kimi-code/skills/*/SKILL.md（18 工作流）
 ├─ 执法层 ── 插件 hooks（工具调用时，fail-open 护栏）
 │            .kimi-base/githooks/（git 层 fail-closed：pre-commit 电池 / pre-push dod+gate / commit-msg）
 │            CI（.kimi-base/audit/ 独立审计 + dod；权威面；templates/github-gate.yml 为采纳者模板）
@@ -69,7 +69,7 @@
 | 压缩前落盘 | PreCompact hook | `hook pre-compact` 写 compaction-note.json（写入上文件锁） |
 | 会话横幅/路由 | SessionStart hook + 插件 sessionStart.skill | `hook session-start`（默认注入 invariants 摘要）+ kimi-base skill |
 | 角色隔离 | custom agents frontmatter | `tools`/`disallowedTools` 白名单；`subagents: []` 机械防递归 |
-| 工作流固化 | skills（type:prompt 自动调用；flow 手动） | 16 个 SKILL.md，`/skill:<name>` 可手动触发 |
+| 工作流固化 | skills（type:prompt 自动调用；flow 手动） | 18 个 SKILL.md，`/skill:<name>` 可手动触发 |
 | 快捷命令 | 插件 commands（命名空间 /kimi-base:*） | init/doctor/status/verify/arch/recap/record/fast |
 | 项目宪法 | AGENTS.md（宿主自动注入） | 根 AGENTS.md + rules/ 下沉指针 |
 | 计划态 | Plan 模式（EnterPlanMode/ExitPlanMode 原生） | 高风险任务先进 plan；架构/需求走签字闸 |

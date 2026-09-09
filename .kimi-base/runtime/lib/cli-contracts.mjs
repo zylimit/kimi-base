@@ -76,8 +76,11 @@ export const STRENGTH_CONTRACT = Object.freeze({
 // CONTRACTS.catalog.flags 被 tests/cli-contracts.test.mjs 现状表逐键锁定（含"不多列"对账），
 // 新 flag 循 STRENGTH_CONTRACT 先例单列导出；dispatch 的 value-flag 解析与未知 flag 校验
 // 对本扩展的派生方式与契约条目完全一致，待测试作者扩表后并入 CONTRACTS.catalog.flags。
+// REQ-081：feedback record --scores/--evidence（效能评分与逐分依据，内联 JSON；
+// 带分数条目必附 evidence，校验在 lib/feedback.mjs）循同一先例单列。
 export const CONTRACT_FLAG_EXTENSIONS = Object.freeze({
-  catalog: Object.freeze({ level: value })
+  catalog: Object.freeze({ level: value }),
+  feedback: Object.freeze({ scores: value, evidence: value })
 });
 
 // 深冻结：契约是跨模块共享事实，运行期不可变。
