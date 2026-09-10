@@ -428,3 +428,10 @@ error → exit 1。`fleet impact <contract>`：直接消费者 + 沿消费者所
 建议条件（不阻断）：risk-scan 发现。全部阻断条件成立 → exit 0 READY。**本命令永不打 tag、永不 push、永不建分支**——发布是 HIGH 级人工动作，release 只组装证据让人签字。非 git → exit 3。
 
 职责划分：**完整性归 dod，新鲜度归 release**。`dod` 的 receipt-verify 步把 exit 4（stale-only）归级为 STALE——陈旧证据如实可见但不阻断 dod 判定；篡改/断链/缺失/漂移（exit 2）仍是 FAIL。`release` 的 ledger-intact 只判完整性问题，receipt-fresh 才判新鲜度。典型流程：工作树评审 ACCEPT → 提交（评审回执随指纹移动 stale，正常痕迹）→ 重跑 `gate` 取当前指纹 fresh 回执 → `dod`（STALE 可见，exit 0）→ `release` READY。对已提交的改动做评审用 range 模式：`review start --base <ref>`，回执绑定 `range.head`，HEAD 未移动即 fresh。
+
+## 16. 宿主限制（插件运行态诚实声明）
+
+以下两条为插件 E2E 实装（2026-09-03，TUI 与 `kimi -p` 双模式亲跑）实证的宿主行为边界，属宿主（Kimi Code 内核）行为而非本框架缺陷；设计不得假装它们不存在。
+
+1. **SessionStart hook 的 stdout 在 `kimi -p`（headless）模式不进模型上下文**：会话横幅的 stdout 只到终端，不注入模型；需要模型必见的信息只能靠阻断型输出（exit 2 + stderr）到达。设计含义：SessionStart 横幅只承载"锦上添花"的状态摘要（gate 四态、fast 窗口等），纪律性内容依赖 invariants 重注入与阻断闸，不依赖横幅被模型读到。
+2. **插件受管副本自带引擎，路径经 `KIMI_PLUGIN_ROOT` 可达**：插件包 `files` 含 `.kimi-base/runtime/`，插件 hook 进程内 `KIMI_PLUGIN_ROOT` 环境变量指向受管副本根。项目内未 setup（无 `.kimi-base/runtime/`）时，sessionStart skill 的引擎探测回退到 `$KIMI_PLUGIN_ROOT/.kimi-base/runtime/kimi-base.mjs`，可跑 `install` / `doctor` 完成首次接入；两者都找不到时如实报告"治理引擎不可用"，不静默。

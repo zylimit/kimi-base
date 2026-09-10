@@ -121,12 +121,14 @@ export async function selftestCommand() {
   } else {
     results.push({ name: 'git 指纹敏感性', ok: true, detail: 'SKIPPED：环境无 git（明示跳过，不计入通过）' });
   }
-  // 13. CLI 契约双向钉死（REQ-056/ADR-0011）：读 lib/cli.mjs 源码提取 dispatch 路由与
-  // help 注册，断言每个路由有契约、每个契约有路由、help 覆盖每个契约 verb。
+  // 13. CLI 契约双向钉死（REQ-056/ADR-0011）：读 lib/cli.mjs 源码提取 dispatch 路由、
+  // 读 lib/cli-help.mjs 提取 help 注册（P13 起 HELP_VERBS 下沉该模块），断言每个路由
+  // 有契约、每个契约有路由、help 覆盖每个契约 verb。
   const cliSource = await readFile(new URL('./cli.mjs', import.meta.url), 'utf8');
+  const helpSource = await readFile(new URL('./cli-help.mjs', import.meta.url), 'utf8');
   const routeVerbs = new Set([...cliSource.matchAll(/^ {4}case '([a-z][\w-]*)':/gm)].map((m) => m[1]));
   const contractVerbs = new Set(Object.keys(CONTRACTS).filter((verb) => verb !== 'help'));
-  const helpVerbs = new Set([...cliSource.matchAll(/^ {2}(?:'([a-z][\w-]*)'|([a-z][\w-]*)): `/gm)].map((m) => m[1] ?? m[2]));
+  const helpVerbs = new Set([...helpSource.matchAll(/^ {2}(?:'([a-z][\w-]*)'|([a-z][\w-]*)): `/gm)].map((m) => m[1] ?? m[2]));
   const missingContract = [...routeVerbs].filter((verb) => !contractVerbs.has(verb));
   const missingRoute = [...contractVerbs].filter((verb) => !routeVerbs.has(verb));
   const missingHelp = [...contractVerbs].filter((verb) => !helpVerbs.has(verb));

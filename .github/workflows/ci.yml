@@ -3,6 +3,11 @@ name: kimi-base CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    # 每周一 03:17 UTC 空跑（错开整点，避开 CI 峰时）——无人提交时依赖/工具链/镜像
+    # 腐烂也能早发现，而不是等下次 PR 才炸（对齐 templates/github-gate.yml）。
+    - cron: '17 3 * * 1'
 
 permissions:
   contents: read
@@ -20,31 +25,98 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      # 全部步骤 continue-on-error + 末尾「汇总判定」一步收口：多层缺陷压回一轮反馈，
+      # 不被第一个失败截断；放行 ≠ 全部通过，被跳过项在汇总中显式可见。
       # 引擎先自证，再评判仓库。
       - name: 引擎自检
+        id: selftest
+        continue-on-error: true
         run: node .kimi-base/runtime/kimi-base.mjs selftest
       # 独立审计脚本（不 import 引擎）：引擎内部缺陷无法让它们沉默。
       - name: 语法（独立审计）
+        id: syntax
+        continue-on-error: true
         run: node .kimi-base/audit/check-syntax.mjs
       - name: 机密扫描（独立审计）
+        id: secrets
+        continue-on-error: true
         run: node .kimi-base/audit/scan-secrets.mjs
       - name: 指令文件注入扫描（独立审计）
+        id: instructions
+        continue-on-error: true
         run: node .kimi-base/audit/scan-instructions.mjs
       # REQ-078：UI 审美 slop 检查（无前端文件时 exit 0 + SKIPPED 响亮声明）。
       - name: UI slop 检查（独立审计）
+        id: uislop
+        continue-on-error: true
         run: node .kimi-base/audit/ui-slop.mjs
       # REQ-079：计划无占位符检查（DEV-PLAN.md 占位词与"类似 Task N"式偷懒引用；无 DEV-PLAN.md 时 exit 3 响亮降级）。
       - name: 计划占位符检查（独立审计）
+        id: planlint
+        continue-on-error: true
         run: node .kimi-base/audit/plan-lint.mjs
       - name: 载荷完整性（独立审计）
+        id: manifest
+        continue-on-error: true
         run: node .kimi-base/audit/manifest.mjs --check
       - name: 行为测试
+        id: tests
+        continue-on-error: true
         run: node .kimi-base/audit/run-tests.mjs
       # REQ-066：自我 eval 套件 regression（防回退套进 CI；capability 爬坡套默认不执行）。
       - name: 自我 eval（regression 套）
+        id: eval
+        continue-on-error: true
         run: node .kimi-base/audit/run-eval.mjs
       # 静态治理电池：catalog/skills/agents/spec/adr/fitness --all/trace/receipt/arch。
       - name: Definition of Done
+        id: dod
+        continue-on-error: true
         run: node .kimi-base/runtime/kimi-base.mjs dod
       - name: 架构漂移棘轮
+        id: archtrend
+        continue-on-error: true
         run: node .kimi-base/runtime/kimi-base.mjs arch trend --gate
+      # 汇总判定：任何步骤失败/被跳过都在这里收口；逐行列出 outcome，
+      # 放行 ≠ 全部通过——被跳过（skipped）项显式可见，不得静默。
+      - name: 汇总判定
+        if: always()
+        shell: bash
+        env:
+          SELFTEST: ${{ steps.selftest.outcome }}
+          SYNTAX: ${{ steps.syntax.outcome }}
+          SECRETS: ${{ steps.secrets.outcome }}
+          INSTRUCTIONS: ${{ steps.instructions.outcome }}
+          UISLOP: ${{ steps.uislop.outcome }}
+          PLANLINT: ${{ steps.planlint.outcome }}
+          MANIFEST: ${{ steps.manifest.outcome }}
+          TESTS: ${{ steps.tests.outcome }}
+          EVAL: ${{ steps.eval.outcome }}
+          DOD: ${{ steps.dod.outcome }}
+          ARCHTREND: ${{ steps.archtrend.outcome }}
+        run: |
+          fail=0
+          # report() 永不非零返回：GitHub 的 shell:bash 即 bash -eo pipefail，
+          # 函数返回 1 会被 -e 提前中止、exit $fail 被绕过（P10 correctness 评审实证：
+          # advisory+skipped 时 [ "$3" = blocking ] && … 短路由返回 1）。汇总打印
+          # 恒 true，最终判定只走 exit $fail。
+          report() { # $1=步骤名 $2=outcome $3=blocking|advisory
+            case "$2" in
+              success) echo "[PASS] $1" ;;
+              skipped) echo "[SKIP] $1——被跳过（放行 ≠ 全部通过）"; if [ "$3" = blocking ]; then fail=1; fi ;;
+              *) if [ "$3" = advisory ]; then echo "[ADVS] $1——建议项未通过（outcome=$2，不阻断）"; else echo "[FAIL] $1（outcome=$2）"; fail=1; fi ;;
+            esac
+            return 0
+          }
+          report 引擎自检 "$SELFTEST" blocking
+          report 语法审计 "$SYNTAX" blocking
+          report 机密扫描 "$SECRETS" blocking
+          report 指令注入扫描 "$INSTRUCTIONS" blocking
+          report UI-slop检查 "$UISLOP" blocking
+          report 计划占位符检查 "$PLANLINT" blocking
+          report 载荷完整性 "$MANIFEST" blocking
+          report 行为测试 "$TESTS" blocking
+          report 自我eval-regression "$EVAL" blocking
+          report DoD "$DOD" blocking
+          report 架构棘轮 "$ARCHTREND" blocking
+          exit $fail

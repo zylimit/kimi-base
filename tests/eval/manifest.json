@@ -160,17 +160,17 @@
       "expected": "exit 3",
       "judge": { "command": "node \"{REPO}/.kimi-base/audit/run-tests.mjs\"", "expectExit": 3 },
       "trace": ["NFR-005"]
+    },
+    {
+      "id": "reg-zero-network-runtime",
+      "name": "runtime 全树零网络 import（执法探针）",
+      "description": "NFR-004 执法：治理引擎全树零 node:http/https/net/tls/dgram 引用，唯一豁免是 supervisor.mjs 健康探针的 node:http/node:https（条文括号内明示）；豁免外新增任何网络 import 必须红。",
+      "expected": "exit 0（supervisor 探针豁免外新增网络 import 必须 exit 1 转红）",
+      "judge": { "command": "node \"{REPO}/tests/eval/lib/case-zero-network.mjs\"" },
+      "trace": ["NFR-004"]
     }
   ],
   "capability": [
-    {
-      "id": "cap-zero-network-runtime",
-      "name": "runtime 全树零网络 import",
-      "description": "NFR-004 终态目标：治理引擎全树（含 supervisor 健康探针例外）零 node:http/https/net 引用——探针改进程外方案后才可达，当前允许失败。",
-      "expected": "当前失败（supervisor.mjs 健康探针为例外），爬坡目标 exit 0",
-      "judge": { "command": "node \"{REPO}/tests/eval/lib/case-zero-network.mjs\"" },
-      "trace": ["NFR-004"]
-    },
     {
       "id": "cap-install-doctor-e2e",
       "name": "安装端到端：install → 种子落地 → doctor",

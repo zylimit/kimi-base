@@ -20,11 +20,18 @@ whenToUse: 每个会话开始时自动加载（插件 sessionStart）；非 kimi
 
 ## 第二步：装载治理状态（仅 kimi-base 项目）
 
+0. 引擎解析（先探测再运行）：优先项目内引擎 `.kimi-base/runtime/kimi-base.mjs`；
+   项目内不存在时（未 setup 或安装不完整），检查环境变量 `KIMI_PLUGIN_ROOT`
+   是否已设置且其下 `.kimi-base/runtime/kimi-base.mjs` 真实存在——`KIMI_PLUGIN_ROOT`
+   只保证注入插件 hook 进程，Agent 的 Bash 环境未必有，必须先探测再使用，存在才用
+   受管引擎跑 `install` / `doctor` 完成首次接入。两者都找不到时如实报告
+   "治理引擎不可用"并继续，不静默、不中断会话。
 1. 读 `.kimi-base/harness.json`（项目名、模块边界、治理配置）。
-2. 依次运行：
-   - `node .kimi-base/runtime/kimi-base.mjs task status`
-   - `node .kimi-base/runtime/kimi-base.mjs quality status`
-   - `node .kimi-base/runtime/kimi-base.mjs fast status`
+2. 用第 0 步解析出的引擎路径（记为 KB）依次运行：
+   - `node <KB> task status`
+   - `node <KB> quality status`
+   - `node <KB> fast status`
+   （项目内引擎缺失且 KIMI_PLUGIN_ROOT 不可用时，跳过本步并在横幅标注"治理引擎不可用"）
 3. 向用户输出简短横幅（≤6 行）：项目名 / 活跃任务 / fast mode 状态 / 待验证项（gate 四态摘要）。
    某条命令失败时在横幅对应位置标注"治理引擎不可用"并继续，不要中断会话。
 
